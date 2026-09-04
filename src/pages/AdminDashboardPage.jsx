@@ -37,7 +37,6 @@ const MOCK_CLUSTERS = [
 
 export default function AdminDashboardPage({ user }) {
   const [selectedCluster, setSelectedCluster] = useState(MOCK_CLUSTERS[0]);
-  const [reportType, setReportType] = useState('PDF');
 
   const stats = {
     total: 428,
@@ -60,29 +59,29 @@ export default function AdminDashboardPage({ user }) {
   return (
     <div className="page-container">
       {/* Executive Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
             Executive Command Center
           </span>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', marginTop: 'var(--space-1)' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', marginTop: 'var(--space-1)' }}>
             Institutional Feedback Intelligence
           </h1>
         </div>
 
         {/* NAAC/NBA Export Buttons */}
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button className="btn-pill btn-secondary" onClick={() => exportReport('PDF')} style={{ fontSize: '0.8rem' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          <button className="btn-pill btn-secondary" onClick={() => exportReport('PDF')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
             <Download size={14} /> PDF Report
           </button>
-          <button className="btn-pill btn-secondary" onClick={() => exportReport('Excel')} style={{ fontSize: '0.8rem' }}>
+          <button className="btn-pill btn-secondary" onClick={() => exportReport('Excel')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
             <FileSpreadsheet size={14} /> NAAC Excel Export
           </button>
         </div>
       </div>
 
       {/* KPI Cards Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-8)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
         {[
           { label: 'Total Submissions', val: stats.total },
           { label: "Today's Feedback", val: stats.today },
@@ -91,11 +90,11 @@ export default function AdminDashboardPage({ user }) {
           { label: 'Avg Satisfaction', val: stats.avgSatisfaction },
           { label: 'Voice Feedback %', val: stats.voicePercentage },
         ].map((kpi, idx) => (
-          <div key={idx} className="metric-card">
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          <div key={idx} className="metric-card" style={{ padding: 'var(--space-3) var(--space-4)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>
               {kpi.label}
             </span>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text)', marginTop: '2px' }}>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text)', marginTop: '2px' }}>
               {kpi.val}
             </div>
           </div>
@@ -103,7 +102,7 @@ export default function AdminDashboardPage({ user }) {
       </div>
 
       {/* AI Smart Categorization & Issues List */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 'var(--space-6)', marginBottom: 'var(--space-8)' }}>
+      <div className="responsive-grid-admin" style={{ marginBottom: 'var(--space-8)' }}>
         {/* Left: AI Merged Clusters */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-3)' }}>
@@ -123,7 +122,7 @@ export default function AdminDashboardPage({ user }) {
                   padding: 'var(--space-4)'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' }}>
                   <span className="badge badge-critical">{c.priority}</span>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--danger)' }}>
                     {c.urgencyScore}
@@ -142,14 +141,14 @@ export default function AdminDashboardPage({ user }) {
         {selectedCluster && (
           <div className="sketch-card animate-fade-up">
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary)' }}>{selectedCluster.id}</span>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', marginTop: '2px' }}>{selectedCluster.title}</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', marginTop: '2px' }}>{selectedCluster.title}</h3>
 
             <div style={{ background: 'var(--secondary)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-dashed)', margin: 'var(--space-4) 0' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary)', textTransform: 'uppercase' }}>AI EXECUTIVE SUMMARY</span>
               <p style={{ fontSize: '0.85rem', color: 'var(--text)', marginTop: '2px' }}>{selectedCluster.aiSummary}</p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: 'var(--space-4)' }}>
+            <div className="responsive-form-grid" style={{ marginBottom: 'var(--space-4)' }}>
               <div style={{ background: 'var(--surface)', border: '1px dashed var(--border-dashed)', padding: '8px', borderRadius: '6px' }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Sentiment Score</span>
                 <p style={{ fontWeight: 700, color: 'var(--danger)' }}>{selectedCluster.sentiment}</p>
@@ -176,10 +175,10 @@ export default function AdminDashboardPage({ user }) {
 
       {/* Faculty Performance Analytics */}
       <div className="sketch-card">
-        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', marginBottom: 'var(--space-4)' }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', marginBottom: 'var(--space-4)' }}>
           Faculty Performance & Engagement Analytics
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-4)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-4)' }}>
           {facultyAnalytics.map((fac, i) => (
             <div key={i} style={{ background: 'var(--secondary)', padding: 'var(--space-4)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-dashed)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

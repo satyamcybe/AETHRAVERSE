@@ -54,28 +54,28 @@ export default function StudentDashboardPage({ user }) {
               Welcome back, {user?.name || 'Ayush Giri'}
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              PRN: {user?.id || 'STU-2026-88'} · Department of {user?.department || 'Computer Engineering'} (Sem 6)
+              PRN: {user?.id || 'STU-2026-88'} · Dept of {user?.department || 'Computer Engineering'} (Sem 6)
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             <Link to="/feedback" className="btn-pill btn-primary">
-              + New Voice/Text Submission
+              + New Voice/Text Feedback
             </Link>
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 'var(--space-6)' }}>
+      <div className="responsive-grid-dashboard">
         {/* Left Column: Submissions History Tabs */}
         <div>
-          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', flexWrap: 'wrap' }}>
             {['active', 'resolved', 'drafts'].map((tab) => (
               <button
                 key={tab}
                 className={`btn-pill ${activeTab === tab ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setActiveTab(tab)}
-                style={{ fontSize: '0.8rem', textTransform: 'capitalize' }}
+                style={{ fontSize: '0.8rem', textTransform: 'capitalize', padding: '4px 12px' }}
               >
                 {tab} Complaints
               </button>
@@ -86,10 +86,10 @@ export default function StudentDashboardPage({ user }) {
             {mySubmissions
               .filter(s => activeTab === 'all' || (activeTab === 'active' && s.type === 'Active') || (activeTab === 'resolved' && s.type === 'Resolved'))
               .map(item => (
-                <div key={item.id} className="sketch-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div key={item.id} className="sketch-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700 }}>{item.id}</span>
-                    <h4 style={{ fontSize: '1rem', marginTop: '2px', fontWeight: 600 }}>{item.title}</h4>
+                    <h4 style={{ fontSize: '0.95rem', marginTop: '2px', fontWeight: 600 }}>{item.title}</h4>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                       {item.category} · {item.dept} · {item.date}
                     </p>

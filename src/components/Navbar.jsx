@@ -1,55 +1,91 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Mic, LayoutDashboard, Search, FileText, UserCheck, Activity, LogOut, LogIn } from 'lucide-react';
+import { Mic, LayoutDashboard, Search, FileText, UserCheck, Activity, LogOut, LogIn, Home } from 'lucide-react';
 
 export default function Navbar({ user, onLogout }) {
   const { pathname } = useLocation();
 
   const studentLinks = [
-    { to: '/feedback', label: 'Voice/Text Feedback', icon: Mic },
-    { to: '/semester-eval', label: 'Semester Eval', icon: FileText },
-    { to: '/tracker', label: 'Action Tracker', icon: Search },
-    { to: '/student-dashboard', label: 'My Dashboard', icon: UserCheck },
+    { to: '/', label: 'Home', icon: Home, shortLabel: 'Home' },
+    { to: '/feedback', label: 'Voice/Text', icon: Mic, shortLabel: 'Speak' },
+    { to: '/tracker', label: 'Action Tracker', icon: Search, shortLabel: 'Tracker' },
+    { to: '/semester-eval', label: 'Semester Eval', icon: FileText, shortLabel: 'Eval' },
+    { to: '/student-dashboard', label: 'Dashboard', icon: UserCheck, shortLabel: 'Account' },
   ];
 
   const adminLinks = [
-    { to: '/admin', label: 'Admin Command', icon: LayoutDashboard },
-    { to: '/pulse', label: 'Analytics Pulse', icon: Activity },
-    { to: '/tracker', label: 'Action Tracker', icon: Search },
+    { to: '/', label: 'Home', icon: Home, shortLabel: 'Home' },
+    { to: '/admin', label: 'Admin Command', icon: LayoutDashboard, shortLabel: 'Command' },
+    { to: '/tracker', label: 'Action Tracker', icon: Search, shortLabel: 'Tracker' },
+    { to: '/pulse', label: 'Analytics Pulse', icon: Activity, shortLabel: 'Pulse' },
   ];
 
   const links = user?.role === 'admin' ? adminLinks : studentLinks;
 
   return (
-    <nav className="nav-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-      <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--primary)' }}>LoopBack</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', background: 'var(--primary-subtle)', color: 'var(--primary)', padding: '2px 8px', borderRadius: '12px', border: '1px dashed var(--primary)' }}>INSTITUTE</span>
-      </Link>
-      
-      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {links.map(({ to, label, icon: Icon }) => (
-          <Link
-            key={to}
-            to={to}
-            className={`nav-link ${pathname === to ? 'active' : ''}`}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <Icon size={16} />
-            <span>{label}</span>
-          </Link>
-        ))}
+    <>
+      {/* Top Navbar */}
+      <nav className="nav-container main-nav-top">
+        <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--primary)' }}>LoopBack</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', background: 'var(--primary-subtle)', color: 'var(--primary)', padding: '2px 8px', borderRadius: '12px', border: '1px dashed var(--primary)' }}>INSTITUTE</span>
+        </Link>
+        
+        {/* Desktop Links */}
+        <div className="desktop-nav-links">
+          {links.filter(l => l.to !== '/').map(({ to, label, icon: Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              className={`nav-link ${pathname === to ? 'active' : ''}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Icon size={16} />
+              <span>{label}</span>
+            </Link>
+          ))}
 
-        {user ? (
-          <button className="btn-pill btn-ghost" onClick={onLogout} style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '8px' }}>
-            <LogOut size={14} /> Logout ({user.name})
-          </button>
-        ) : (
-          <Link to="/login" className="btn-pill btn-primary" style={{ fontSize: '0.85rem', marginLeft: '8px' }}>
-            <LogIn size={14} /> Login
-          </Link>
-        )}
+          {user ? (
+            <button className="btn-pill btn-ghost" onClick={onLogout} style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '4px' }}>
+              <LogOut size={14} /> Logout
+            </button>
+          ) : (
+            <Link to="/login" className="btn-pill btn-primary" style={{ fontSize: '0.85rem', marginLeft: '4px' }}>
+              <LogIn size={14} /> Login
+            </Link>
+          )}
+        </div>
+
+        {/* Mobile Header Right (User badge / Logout) */}
+        <div className="mobile-header-user">
+          {user ? (
+            <button className="btn-pill btn-ghost" onClick={onLogout} style={{ fontSize: '0.75rem', padding: '4px 8px', color: 'var(--danger)' }}>
+              <LogOut size={14} />
+            </button>
+          ) : (
+            <Link to="/login" className="btn-pill btn-primary" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+              Login
+            </Link>
+          )}
+        </div>
+      </nav>
+
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <div className="mobile-bottom-nav">
+        {links.map(({ to, shortLabel, icon: Icon }) => {
+          const isActive = pathname === to;
+          return (
+            <Link
+              key={to}
+              to={to}
+              className={`mobile-tab-item ${isActive ? 'active' : ''}`}
+            >
+              <Icon size={18} />
+              <span>{shortLabel}</span>
+            </Link>
+          );
+        })}
       </div>
-    </nav>
+    </>
   );
 }

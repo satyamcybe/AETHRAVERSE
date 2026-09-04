@@ -60,40 +60,40 @@ export default function ActionTrackerPage({ user }) {
   return (
     <div className="page-container">
       {/* Search Header */}
-      <div style={{ marginBottom: 'var(--space-8)' }}>
+      <div style={{ marginBottom: 'var(--space-6)' }}>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
           Transparent Action Engine
         </span>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', marginTop: 'var(--space-1)' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', marginTop: 'var(--space-1)' }}>
           Action Taken Tracker & Two-Way Thread
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: 'var(--space-6)' }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: 'var(--space-4)' }}>
           Monitor every stage of institutional complaints and communicate directly with resolving department heads.
         </p>
 
         {/* Tracking ID Search Bar */}
-        <div className="sketch-card" style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', gap: 'var(--space-3)' }}>
+        <div className="sketch-card" style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
           <input
             className="sketch-input"
             value={searchId}
             onChange={(e) => setSearchId(e.target.value)}
             placeholder="Enter Tracking ID (e.g. FB-2026-01482)"
-            style={{ flex: 1 }}
+            style={{ flex: 1, minWidth: '200px' }}
           />
-          <button className="btn-pill btn-primary">
+          <button className="btn-pill btn-primary" style={{ width: 'auto', justifyContent: 'center' }}>
             <Search size={16} /> Track Issue
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 'var(--space-6)' }}>
+      <div className="responsive-grid-2">
         {/* Left Column: 7-Stage Timeline + Resolution Proof */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
           <div className="sketch-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', marginBottom: 'var(--space-4)' }}>
               <div>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700 }}>{activeItem.id}</span>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', marginTop: '2px' }}>{activeItem.title}</h3>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', marginTop: '2px' }}>{activeItem.title}</h3>
               </div>
               <span className="badge badge-high">{STAGES[activeItem.currentStageIndex]}</span>
             </div>
@@ -182,7 +182,7 @@ export default function ActionTrackerPage({ user }) {
                 <p style={{ fontSize: '0.85rem', color: 'var(--text)', marginBottom: 'var(--space-3)' }}>
                   Work order completion certificate and new projector installation photos submitted.
                 </p>
-                <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
                   <button className="btn-pill btn-primary" style={{ fontSize: '0.8rem' }}>Satisfied (Close Issue)</button>
                   <button className="btn-pill btn-danger" style={{ fontSize: '0.8rem' }}>Needs Further Action</button>
                 </div>
@@ -192,7 +192,7 @@ export default function ActionTrackerPage({ user }) {
         </div>
 
         {/* Right Column: Two-Way Conversation Thread */}
-        <div className="sketch-card" style={{ display: 'flex', flexDirection: 'column', height: '600px' }}>
+        <div className="sketch-card" style={{ display: 'flex', flexDirection: 'column', height: '520px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--space-4)', paddingBottom: 'var(--space-3)', borderBottom: '1px dashed var(--border-dashed)' }}>
             <MessageSquare size={18} color="var(--primary)" />
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem' }}>Two-Way Direct Channel</h3>
@@ -205,7 +205,7 @@ export default function ActionTrackerPage({ user }) {
                 key={i}
                 style={{
                   alignSelf: msg.role === 'student' ? 'flex-end' : 'flex-start',
-                  maxWidth: '85%',
+                  maxWidth: '90%',
                   background: msg.role === 'student' ? 'var(--primary-subtle)' : 'var(--secondary)',
                   border: `1px dashed ${msg.role === 'student' ? 'var(--primary)' : 'var(--border-dashed)'}`,
                   padding: 'var(--space-3)',
@@ -230,8 +230,9 @@ export default function ActionTrackerPage({ user }) {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Type reply or request progress update..."
+              style={{ flex: 1 }}
             />
-            <button type="submit" className="btn-pill btn-primary" style={{ padding: '0 16px' }}>
+            <button type="submit" className="btn-pill btn-primary" style={{ padding: '0 16px', justifyContent: 'center' }}>
               <Send size={16} />
             </button>
           </form>

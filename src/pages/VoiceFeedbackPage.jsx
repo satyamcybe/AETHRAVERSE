@@ -101,12 +101,12 @@ export default function VoiceFeedbackPage({ user }) {
   };
 
   return (
-    <div className="page-center" style={{ minHeight: 'calc(100vh - 60px)' }}>
+    <div className="page-center">
       <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
           Institutional Feedback Portal
         </span>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', marginTop: 'var(--space-1)' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', marginTop: 'var(--space-1)' }}>
           {step === 'submitted' ? 'Feedback Submitted' : 'Submit Voice or Text Feedback'}
         </h1>
       </div>
@@ -114,25 +114,25 @@ export default function VoiceFeedbackPage({ user }) {
       {step === 'input' && (
         <div className="sketch-card animate-fade-up">
           {/* Mode Switcher */}
-          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-6)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-6)', flexWrap: 'wrap' }}>
             <button
               className={`btn-pill ${mode === 'voice' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setMode('voice')}
-              style={{ flex: 1, justifyContent: 'center' }}
+              style={{ flex: 1, minWidth: '130px', justifyContent: 'center' }}
             >
               <Mic size={16} /> Voice Feedback
             </button>
             <button
               className={`btn-pill ${mode === 'text' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setMode('text')}
-              style={{ flex: 1, justifyContent: 'center' }}
+              style={{ flex: 1, minWidth: '130px', justifyContent: 'center' }}
             >
-              <Edit3 size={16} /> Rich Text Feedback
+              <Edit3 size={16} /> Text Feedback
             </button>
           </div>
 
           {/* Configuration Options */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
+          <div className="responsive-form-grid" style={{ marginBottom: 'var(--space-6)' }}>
             <div>
               <label style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 PREFERRED LANGUAGE
@@ -190,11 +190,11 @@ export default function VoiceFeedbackPage({ user }) {
                 className={`voice-orb ${isListening ? 'listening' : 'idle'}`}
                 style={{ margin: '0 auto var(--space-4)' }}
               >
-                {isListening ? <Mic size={48} color="var(--primary)" /> : <MicOff size={48} color="var(--text-muted)" />}
+                {isListening ? <Mic size={40} color="var(--primary)" /> : <MicOff size={40} color="var(--text-muted)" />}
               </div>
 
               {isListening && (
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--danger)', marginBottom: 'var(--space-4)' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--danger)', marginBottom: 'var(--space-4)' }}>
                   ● Recording: {formatTime(duration)} (Noise Reduction Active)
                 </div>
               )}
@@ -213,13 +213,13 @@ export default function VoiceFeedbackPage({ user }) {
             <div>
               <textarea
                 className="sketch-input"
-                rows={6}
+                rows={5}
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
                 placeholder="Type your detailed complaint or suggestion here..."
                 style={{ marginBottom: 'var(--space-3)' }}
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)', flexWrap: 'wrap', gap: '8px' }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Character Count: {textInput.length}
                 </span>
@@ -243,9 +243,9 @@ export default function VoiceFeedbackPage({ user }) {
 
       {/* Analyzing Step */}
       {step === 'analyzing' && (
-        <div className="sketch-card animate-fade-up" style={{ textAlign: 'center', padding: 'var(--space-10)' }}>
+        <div className="sketch-card animate-fade-up" style={{ textAlign: 'center', padding: 'var(--space-8)' }}>
           <div className="voice-orb processing" style={{ margin: '0 auto var(--space-6)' }}>
-            <Sparkles size={36} color="var(--primary)" style={{ animation: 'spinSlow 3s linear infinite' }} />
+            <Sparkles size={32} color="var(--primary)" style={{ animation: 'spinSlow 3s linear infinite' }} />
           </div>
           <p style={{ color: 'var(--text-secondary)' }}>AI is categorizing, detecting sentiment, and extracting key details...</p>
         </div>
@@ -254,18 +254,18 @@ export default function VoiceFeedbackPage({ user }) {
       {/* Review Step */}
       {step === 'review' && (
         <div className="sketch-card animate-fade-up">
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', marginBottom: 'var(--space-4)' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', marginBottom: 'var(--space-4)' }}>
             Review Before Submission
           </h3>
 
           <div style={{ background: 'var(--secondary)', padding: 'var(--space-4)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-dashed)', marginBottom: 'var(--space-4)' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TRANSCRIPT / TEXT</span>
-            <p style={{ fontSize: '0.95rem', marginTop: '4px', fontStyle: 'italic' }}>
+            <p style={{ fontSize: '0.9rem', marginTop: '4px', fontStyle: 'italic' }}>
               "{mode === 'voice' ? transcript : textInput}"
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
+          <div className="responsive-form-grid" style={{ marginBottom: 'var(--space-6)' }}>
             <div style={{ background: 'var(--surface)', border: '1px dashed var(--border-dashed)', padding: '8px 12px', borderRadius: '8px' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Category</span>
               <p style={{ fontWeight: 600 }}>{category} ({subcategory})</p>
@@ -276,11 +276,11 @@ export default function VoiceFeedbackPage({ user }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-            <button className="btn-pill btn-secondary" onClick={() => setStep('input')} style={{ flex: 1, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+            <button className="btn-pill btn-secondary" onClick={() => setStep('input')} style={{ flex: 1, minWidth: '100px', justifyContent: 'center' }}>
               Edit
             </button>
-            <button className="btn-pill btn-primary" onClick={handleSubmit} style={{ flex: 2, justifyContent: 'center' }}>
+            <button className="btn-pill btn-primary" onClick={handleSubmit} style={{ flex: 2, minWidth: '160px', justifyContent: 'center' }}>
               <Send size={16} /> Submit to Institute
             </button>
           </div>
@@ -289,9 +289,9 @@ export default function VoiceFeedbackPage({ user }) {
 
       {/* Submitted Confirmation */}
       {step === 'submitted' && (
-        <div className="sketch-card animate-scale-in" style={{ textAlign: 'center', padding: 'var(--space-8)' }}>
-          <CheckCircle2 size={64} color="var(--success)" style={{ margin: '0 auto var(--space-4)' }} />
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', marginBottom: 'var(--space-2)' }}>
+        <div className="sketch-card animate-scale-in" style={{ textAlign: 'center', padding: 'var(--space-6)' }}>
+          <CheckCircle2 size={56} color="var(--success)" style={{ margin: '0 auto var(--space-4)' }} />
+          <h2 style={{ fontFamily: 'var(--font-display)', marginBottom: 'var(--space-2)' }}>
             Complaint Registered
           </h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-6)' }}>
@@ -300,13 +300,13 @@ export default function VoiceFeedbackPage({ user }) {
 
           <div style={{ background: 'var(--primary-subtle)', border: '2px dashed var(--primary)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', display: 'inline-block', marginBottom: 'var(--space-6)' }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--primary)', textTransform: 'uppercase' }}>UNIQUE TRACKING ID</span>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
               {trackingId}
             </div>
           </div>
 
           <br />
-          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button className="btn-pill btn-secondary" onClick={() => setStep('input')}>
               <RotateCcw size={14} /> Submit Another
             </button>

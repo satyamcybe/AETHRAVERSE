@@ -86,6 +86,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
+  padding-bottom: 0px;
 }
 
 /* ── Global Typography ── */
@@ -129,6 +130,8 @@ h3 { font-size: 1.75rem; }
   cursor: pointer;
   transition: all var(--transition-fast);
   text-decoration: none;
+  touch-action: manipulation;
+  min-height: 40px;
 }
 
 .btn-primary {
@@ -256,33 +259,6 @@ h3 { font-size: 1.75rem; }
   box-shadow: var(--shadow-sketch);
 }
 
-/* ── Timeline ── */
-.timeline-line {
-  width: 2px;
-  background: var(--border);
-  border-left: 2px dashed var(--border-dashed);
-}
-
-.timeline-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--border-dashed);
-  background: var(--surface);
-  flex-shrink: 0;
-}
-
-.timeline-dot.completed {
-  background: var(--primary);
-  border-color: var(--primary);
-}
-
-.timeline-dot.active {
-  background: var(--surface);
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px var(--primary-subtle);
-}
-
 /* ── Input Fields ── */
 .sketch-input {
   width: 100%;
@@ -290,7 +266,7 @@ h3 { font-size: 1.75rem; }
   border: 2px dashed var(--border-dashed);
   border-radius: 10px;
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 1rem; /* 16px prevents iOS zoom on focus */
   background: var(--surface);
   color: var(--text);
   transition: border-color var(--transition-fast);
@@ -311,6 +287,24 @@ h3 { font-size: 1.75rem; }
   background: var(--surface);
   border-bottom: 2px dashed var(--border-dashed);
   padding: var(--space-3) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.desktop-nav-links {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mobile-header-user {
+  display: none;
 }
 
 .nav-link {
@@ -330,40 +324,68 @@ h3 { font-size: 1.75rem; }
   background: var(--primary-subtle);
 }
 
-/* ── Animations ── */
-@keyframes fadeSlideUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ── Mobile Fixed Bottom Navigation ── */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 62px;
+  background: #FFFFFF;
+  border-top: 2px dashed var(--border-dashed);
+  z-index: 999;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+  padding: 0 4px;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.mobile-tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 500;
+  flex: 1;
+  height: 100%;
+  transition: all var(--transition-fast);
 }
 
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
+.mobile-tab-item.active {
+  color: var(--primary);
+  font-weight: 700;
 }
 
-@keyframes spinSlow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/* ── Responsive Grids & Layout Helpers ── */
+.responsive-grid-2 {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: var(--space-6);
 }
 
-.animate-fade-up {
-  animation: fadeSlideUp 0.5s ease-out forwards;
+.responsive-grid-admin {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: var(--space-6);
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.4s ease-out forwards;
+.responsive-grid-dashboard {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-6);
 }
 
-.animate-scale-in {
-  animation: scaleIn 0.3s ease-out forwards;
+.responsive-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
 }
 
-/* ── Layout Helpers ── */
 .page-container {
   max-width: 1100px;
   margin: 0 auto;
@@ -376,11 +398,62 @@ h3 { font-size: 1.75rem; }
   padding: var(--space-8) var(--space-4);
 }
 
-/* ── Responsive ── */
+/* ── Responsive Media Queries ── */
 @media (max-width: 768px) {
-  h1 { font-size: 2.25rem; }
-  h2 { font-size: 1.75rem; }
-  h3 { font-size: 1.35rem; }
-  .page-container { padding: var(--space-4) var(--space-3); }
-  .page-center { padding: var(--space-4) var(--space-3); }
+  body {
+    padding-bottom: 70px; /* Space for bottom nav bar */
+  }
+
+  h1 { font-size: 2.2rem; }
+  h2 { font-size: 1.7rem; }
+  h3 { font-size: 1.3rem; }
+
+  .page-container {
+    padding: var(--space-4) var(--space-3) var(--space-8);
+  }
+
+  .page-center {
+    padding: var(--space-4) var(--space-3) var(--space-8);
+  }
+
+  .sketch-card {
+    padding: var(--space-4);
+  }
+
+  .desktop-nav-links {
+    display: none;
+  }
+
+  .mobile-header-user {
+    display: flex;
+    align-items: center;
+  }
+
+  .mobile-bottom-nav {
+    display: flex;
+  }
+
+  .responsive-grid-2,
+  .responsive-grid-admin,
+  .responsive-grid-dashboard {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .responsive-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-orb {
+    width: 110px;
+    height: 110px;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 { font-size: 1.8rem; }
+  .btn-pill {
+    padding: var(--space-2) var(--space-4);
+    font-size: 0.85rem;
+  }
 }
