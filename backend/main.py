@@ -197,6 +197,37 @@ def _seed_initial():
                         "required": False
                     }
                 ]
+            },
+            {
+                "id": "FORM-2026-102",
+                "title": "Campus Food Hygiene & Canteen Sanitation Audit",
+                "description": "Institutional feedback survey for monitoring canteen cleanliness, drinking water quality, and food pricing transparency.",
+                "department": "Student Welfare & Campus Facilities",
+                "status": "Published",
+                "google_form_url": "https://forms.google.com/demo-loopback-canteen",
+                "google_sheet_url": "https://docs.google.com/spreadsheets/demo-canteen",
+                "qr_code_data": "http://localhost:5173/form/FORM-2026-102",
+                "created_at": "2026-09-02T14:30:00Z",
+                "questions": [
+                    { "id": "q1", "question_text": "How often do you utilize campus canteen and dining services?", "question_type": "MCQ", "options": ["Daily", "3-4 times a week", "Rarely", "Never"], "required": True },
+                    { "id": "q2", "question_text": "Rate the hygiene standards and cleanliness of food preparation areas.", "question_type": "RATING", "options": ["1 - Poor", "2 - Fair", "3 - Average", "4 - Good", "5 - Excellent"], "required": True },
+                    { "id": "q3", "question_text": "Are RO water dispensers functional on your department floor?", "question_type": "YES_NO", "options": ["Yes", "No"], "required": True }
+                ]
+            },
+            {
+                "id": "FORM-2026-103",
+                "title": "Mid-Semester Academic Evaluation & Exam Preparedness",
+                "description": "Survey assessing syllabus completion speed, internal lab exam arrangements, and study material availability.",
+                "department": "Academic Quality Assurance",
+                "status": "Active",
+                "google_form_url": "https://forms.google.com/demo-loopback-midsem",
+                "google_sheet_url": "https://docs.google.com/spreadsheets/demo-midsem",
+                "qr_code_data": "http://localhost:5173/form/FORM-2026-103",
+                "created_at": "2026-09-03T11:15:00Z",
+                "questions": [
+                    { "id": "q1", "question_text": "Has at least 50% of your course syllabus been completed before mid-term exams?", "question_type": "YES_NO", "options": ["Yes", "No"], "required": True },
+                    { "id": "q2", "question_text": "Rate the availability of reference textbooks in the central library.", "question_type": "RATING", "options": ["1 - Poor", "2 - Fair", "3 - Average", "4 - Good", "5 - Excellent"], "required": True }
+                ]
             }
         ]
         _save_json(FORMS_FILE, forms)
