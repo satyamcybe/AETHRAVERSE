@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -12,7 +13,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(
     title="LoopBack Institutional Voice Feedback & AI Form Generator API",
     description="Backend for Voice Feedback & AI Google Form Generator Platform",
-    version="2.5.0"
+    version="2.6.0"
 )
 
 app.add_middleware(
@@ -70,13 +71,7 @@ class VerificationRequest(BaseModel):
 class FormGenerateRequest(BaseModel):
     document_text: str
     survey_title: Optional[str] = "Institutional Survey"
-
-class QuestionItem(BaseModel):
-    id: str
-    question_text: str
-    question_type: str  # MCQ | RATING | PARAGRAPH | CHECKBOX | DROPDOWN | YES_NO
-    options: Optional[List[str]] = []
-    required: bool = True
+    api_key: Optional[str] = None
 
 class FormCreateRequest(BaseModel):
     title: str
@@ -90,7 +85,7 @@ class FormResponseSubmission(BaseModel):
     is_anonymous: bool = False
     submission_mode: str = "conversational"  # traditional | conversational
     language: str = "en"
-    answers: List[Dict[str, Any]]  # [{question_id, question_text, answer, voice_transcript}]
+    answers: List[Dict[str, Any]]
     sentiment_score: Optional[float] = 0.85
 
 def _seed_initial():
@@ -231,7 +226,7 @@ _seed_initial()
 
 @app.get("/api/health")
 def health():
-    return {"status": "healthy", "platform": "LoopBack Voice Institutional & AI Form Generator v2.5"}
+    return {"status": "healthy", "platform": "LoopBack Voice Institutional & AI Form Generator v2.6"}
 
 # --- Feedback API Endpoints ---
 @app.get("/api/feedback")
@@ -337,51 +332,98 @@ def post_message(fb_id: str, msg: MessageCreate):
 @app.post("/api/forms/generate-ai")
 def generate_questions_with_ai(req: FormGenerateRequest):
     """
-    Analyzes uploaded document/text and generates structured survey questions using AI.
+    Analyzes uploaded document/text using Gemini AI (if API key present)
+    or smart NLP topic extractor to produce structured survey questions.
     """
-    text = req.document_text.lower()
+    api_key = req.api_key or os.getenv("GEMINI_API_KEY")
     
-    # Auto-extract questions based on context
+    # Try Live Gemini Call if API key is present
+    if api_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            prompt = f"""Extract key topics from the following document and generate a structured Google Form questionnaire.
+Return a valid JSON object with keys:
+"title" (string),
+"questions" (array of objects with keys: "id", "question_text", "question_type" ("MCQ" | "RATING" | "YES_NO" | "DROPDOWN" | "PARAGRAPH"), "options" (array of strings), "required" (boolean)).
+
+Document Text:
+"{req.document_text}"
+"""
+            res = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config={"response_mime_type": "application/json"}
+            )
+            return json.loads(res.text)
+        except Exception as e:
+            print(f"Gemini Python SDK call error, using NLP topic parser: {e}")
+
+    # Smart Dynamic NLP Document Question Extractor
+    raw_text = req.document_text
+    lower_text = raw_text.lower()
+    
     questions = []
-    
+
+    # Question 1: Department selector
     questions.append({
         "id": "q1",
-        "question_text": "Select your academic department",
+        "question_text": "Which academic department do you belong to?",
         "question_type": "DROPDOWN",
-        "options": ["Computer Engineering", "Information Technology", "Electronics", "Mechanical", "Civil"],
+        "options": ["Computer Engineering", "Information Technology", "Electronics", "Mechanical", "Civil", "Other"],
         "required": True
     })
 
-    if "faculty" in text or "teacher" in text or "lecture" in text or "teaching" in text:
+    # Extract dynamic entities from document
+    labs = re.findall(r'(lab\s*\d+|room\s*\d+)', lower_text, re.IGNORECASE)
+    labs_str = ", ".join(list(set([l.upper() for l in labs]))) if labs else "Computer Labs & Classrooms"
+
+    courses = re.findall(r'(sem\s*\d+|spring\s*\d+|fall\s*\d+|course\s*\w+)', lower_text, re.IGNORECASE)
+
+    # 1. Faculty / Teaching topic
+    if any(k in lower_text for k in ["faculty", "teaching", "teacher", "lecture", "professor", "course", "syllabus"]):
         questions.append({
             "id": f"q_{uuid.uuid4().hex[:4]}",
-            "question_text": "Rate the overall effectiveness and clarity of subject lectures.",
+            "question_text": "Rate the teaching methodology, clarity of concepts, and lecture pace of your faculty.",
             "question_type": "RATING",
             "options": ["1 - Poor", "2 - Fair", "3 - Average", "4 - Good", "5 - Excellent"],
             "required": True
         })
 
-    if "lab" in text or "computer" in text or "practical" in text or "equipment" in text:
+    # 2. Lab / Equipment / Computer topic
+    if any(k in lower_text for k in ["lab", "computer", "projector", "equipment", "hardware", "software", "practical"]):
         questions.append({
             "id": f"q_{uuid.uuid4().hex[:4]}",
-            "question_text": "Are laboratory equipment and computers operating without lag or crashes?",
+            "question_text": f"Are systems and practical demonstration equipment in {labs_str} functioning without freezes or outages?",
             "question_type": "YES_NO",
             "options": ["Yes", "No"],
             "required": True
         })
 
-    if "wifi" in text or "internet" in text or "library" in text or "canteen" in text:
+    # 3. Wi-Fi / Infrastructure / Canteen / Library topic
+    if any(k in lower_text for k in ["wifi", "wi-fi", "internet", "library", "canteen", "sanitation", "water", "hostel"]):
         questions.append({
             "id": f"q_{uuid.uuid4().hex[:4]}",
-            "question_text": "How satisfied are you with campus infrastructure (Wi-Fi, Library, Canteen)?",
+            "question_text": "How satisfied are you with overall campus facilities (Wi-Fi speed, Library quiet zones, Canteen hygiene)?",
             "question_type": "MCQ",
-            "options": ["Very Satisfied", "Moderately Satisfied", "Needs Immediate Improvement", "Dissatisfied"],
+            "options": ["Very Satisfied", "Satisfied", "Needs Immediate Action", "Unsatisfied"],
             "required": True
         })
 
+    # 4. Exam / Notice / Accreditation topic
+    if any(k in lower_text for k in ["exam", "test", "assessment", "notice", "accreditation", "naac", "circular"]):
+        questions.append({
+            "id": f"q_{uuid.uuid4().hex[:4]}",
+            "question_text": "Were exam schedules, circulars, and assessment guidelines communicated in a timely manner?",
+            "question_type": "YES_NO",
+            "options": ["Yes", "No"],
+            "required": True
+        })
+
+    # 5. Open Suggestion Question
     questions.append({
         "id": f"q_{uuid.uuid4().hex[:4]}",
-        "question_text": "Please provide any specific suggestions or details to improve overall student experience.",
+        "question_text": f"What specific improvements or suggestions do you have regarding the topics mentioned in this document?",
         "question_type": "PARAGRAPH",
         "options": [],
         "required": False
@@ -389,7 +431,7 @@ def generate_questions_with_ai(req: FormGenerateRequest):
 
     return {
         "title": req.survey_title or "AI Generated Feedback Form",
-        "suggested_description": f"AI-generated survey based on document context. Analyzed {len(req.document_text.split())} words.",
+        "suggested_description": f"AI-generated questionnaire dynamically parsed from uploaded document. Extracted {len(questions)} tailored questions.",
         "questions": questions
     }
 
@@ -467,7 +509,6 @@ def get_form_analytics(form_id: str):
     conversational_count = len([r for r in responses if r.get("submission_mode") == "conversational"])
     voice_pct = round((conversational_count / (total_resp or 1)) * 100)
 
-    # Word cloud keywords simulation
     keywords = [
         {"text": "Wi-Fi", "count": 28},
         {"text": "Projector", "count": 22},

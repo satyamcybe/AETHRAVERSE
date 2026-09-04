@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Mic, LayoutDashboard, Search, FileText, UserCheck, Activity, LogOut, LogIn, Home, Sparkles } from 'lucide-react';
+import { Mic, LayoutDashboard, Search, FileText, UserCheck, Activity, LogOut, LogIn, Home, Sparkles, Key, Check } from 'lucide-react';
 
 export default function Navbar({ user, onLogout }) {
   const { pathname } = useLocation();
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   const studentLinks = [
     { to: '/', label: 'Home', icon: Home, shortLabel: 'Home' },
@@ -22,6 +25,15 @@ export default function Navbar({ user, onLogout }) {
   ];
 
   const links = user?.role === 'admin' ? adminLinks : studentLinks;
+
+  const handleSaveKey = () => {
+    localStorage.setItem('gemini_api_key', apiKey.trim());
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      setShowKeyModal(false);
+    }, 1200);
+  };
 
   return (
     <>
@@ -46,6 +58,16 @@ export default function Navbar({ user, onLogout }) {
             </Link>
           ))}
 
+          {/* Gemini API Key Config */}
+          <button
+            className="btn-pill btn-secondary"
+            onClick={() => setShowKeyModal(true)}
+            title="Configure Gemini API Key"
+            style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+          >
+            <Key size={14} color="var(--primary)" /> API Key
+          </button>
+
           {user ? (
             <button className="btn-pill btn-ghost" onClick={onLogout} style={{ fontSize: '0.85rem', color: 'var(--danger)', marginLeft: '4px' }}>
               <LogOut size={14} /> Logout
@@ -57,8 +79,16 @@ export default function Navbar({ user, onLogout }) {
           )}
         </div>
 
-        {/* Mobile Header Right (User badge / Logout) */}
+        {/* Mobile Header Right */}
         <div className="mobile-header-user">
+          <button
+            className="btn-pill btn-secondary"
+            onClick={() => setShowKeyModal(true)}
+            style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+          >
+            <Key size={14} />
+          </button>
+
           {user ? (
             <button className="btn-pill btn-ghost" onClick={onLogout} style={{ fontSize: '0.75rem', padding: '4px 8px', color: 'var(--danger)' }}>
               <LogOut size={14} />
@@ -70,6 +100,38 @@ export default function Navbar({ user, onLogout }) {
           )}
         </div>
       </nav>
+
+      {/* API Key Modal */}
+      {showKeyModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div className="sketch-card animate-scale-in" style={{ maxWidth: '400px', width: '100%', background: '#fff', padding: 'var(--space-6)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', marginBottom: 'var(--space-2)' }}>
+              Google Gemini API Key
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }}>
+              Enter your Gemini API key to enable live AI generation & conversational voice follow-up.
+            </p>
+
+            <input
+              type="password"
+              className="sketch-input"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="AIzaSy..."
+              style={{ marginBottom: 'var(--space-4)' }}
+            />
+
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button className="btn-pill btn-primary" onClick={handleSaveKey} style={{ flex: 2, justifyContent: 'center' }}>
+                {savedSuccess ? <><Check size={16} /> Saved!</> : 'Save API Key'}
+              </button>
+              <button className="btn-pill btn-secondary" onClick={() => setShowKeyModal(false)} style={{ flex: 1, justifyContent: 'center' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Fixed Bottom Navigation Bar */}
       <div className="mobile-bottom-nav">

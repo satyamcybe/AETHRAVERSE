@@ -2,17 +2,25 @@
 
 const MOCK_DELAY = 900;
 
+export const getStoredApiKey = () => {
+  return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) ||
+         localStorage.getItem('gemini_api_key') ||
+         '';
+};
+
 /**
  * Evaluates feedback completeness and generates targeted follow-up questions
- * until all institutional parameters (Location, Frequency/Time, Impact, Specific Details) are gathered.
+ * using Google Gemini 2.5 Flash API or smart document extractor.
  */
-export const analyzeConversationalFeedback = async (conversationHistory, currentCategory = 'Infrastructure', apiKey = null) => {
+export const analyzeConversationalFeedback = async (conversationHistory, currentCategory = 'Infrastructure', providedApiKey = null) => {
+  const apiKey = providedApiKey || getStoredApiKey();
+
   if (apiKey) {
     try {
       const { GoogleGenAI } = await import('@google/genai');
       const ai = new GoogleGenAI({ apiKey });
 
-      const formattedHistory = conversationHistory.map(item => `${item.role === 'assistant' ? 'AI' : 'Student'}: "${item.text}"`).join('\n');
+      const formattedHistory = conversationHistory.map(item => `${item.role === 'assistant' ? 'AI Assistant' : 'Student'}: "${item.text}"`).join('\n');
 
       const prompt = `You are LoopBack Institutional AI Assistant. Analyze the following feedback conversation between a student and AI.
 Category: ${currentCategory}
@@ -49,13 +57,15 @@ Return ONLY a JSON object with this exact structure:
         config: { responseMimeType: 'application/json' }
       });
 
-      return JSON.parse(response.text);
+      if (response && response.text) {
+        return JSON.parse(response.text);
+      }
     } catch (err) {
-      console.warn('Gemini API error, falling back to rule engine:', err);
+      console.warn('Gemini API live call notice:', err);
     }
   }
 
-  // Smart rule-based fallback for offline / mock demo
+  // Dynamic Rule & NLP Extractor Fallback when API key is pending
   await new Promise(r => setTimeout(r, MOCK_DELAY));
 
   const fullText = conversationHistory.map(c => c.text).join(' ').toLowerCase();
