@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 import re
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -13,7 +14,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(
     title="LoopBack Institutional Voice Feedback & AI Form Generator API",
     description="Backend for Voice Feedback & AI Google Form Generator Platform",
-    version="2.7.0"
+    version="2.8.0"
 )
 
 app.add_middleware(
@@ -39,6 +40,31 @@ def _load_json(filepath: Path, default=None):
 
 def _save_json(filepath: Path, data):
     filepath.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+
+def _call_gemini_rest(prompt: str, api_key: str):
+    """
+    Fail-safe direct Google Gemini REST API call trying multiple model endpoints.
+    """
+    models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash"]
+    for m in models:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent?key={api_key}"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"responseMimeType": "application/json"}
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=12) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                return json.loads(text)
+        except Exception as err:
+            print(f"Gemini REST model {m} call notice: {err}")
+    return None
 
 # Models
 class MessageCreate(BaseModel):
@@ -238,7 +264,7 @@ _seed_initial()
 
 @app.get("/api/health")
 def health():
-    return {"status": "healthy", "platform": "LoopBack Voice Institutional & AI Form Generator v2.7"}
+    return {"status": "healthy", "platform": "LoopBack Voice Institutional & AI Form Generator v2.8"}
 
 # --- Feedback API Endpoints ---
 @app.get("/api/feedback")
@@ -282,16 +308,13 @@ def create_feedback(submission: FeedbackSubmission):
 def analyze_feedback_ai(req: AnalyzeFeedbackRequest):
     """
     Evaluates multi-turn student voice/text conversation and generates targeted AI follow-up questions
-    dynamically using Google Gemini 2.5 Flash API or smart contextual NLP triage.
+    dynamically using Google Gemini REST API or smart contextual NLP triage.
     """
     api_key = req.api_key or os.getenv("GEMINI_API_KEY")
     history_text = "\n".join([f"{item.get('role', 'user')}: {item.get('text', '')}" for item in req.conversation_history])
     
     if api_key:
-        try:
-            from google import genai
-            client = genai.Client(api_key=api_key)
-            prompt = f"""You are LoopBack Institutional AI Triage Assistant.
+        prompt = f"""You are LoopBack Institutional AI Triage Assistant.
 Category: {req.category}
 
 Conversation History so far:
@@ -318,16 +341,11 @@ Return JSON object:
   "sentiment": "Negative" | "Neutral" | "Positive",
   "extractedDetails": [array of strings]
 }}"""
-            res = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config={"response_mime_type": "application/json"}
-            )
-            return json.loads(res.text)
-        except Exception as e:
-            print(f"Gemini SDK error: {e}")
+        gemini_res = _call_gemini_rest(prompt, api_key)
+        if gemini_res:
+            return gemini_res
 
-    # Smart Dynamic Contextual NLP Triage Engine (Incorporates student's EXACT phrases!)
+    # Dynamic Contextual NLP Triage Engine (Incorporates student's EXACT phrases!)
     full_text = " ".join([c.get("text", "") for c in req.conversation_history]).strip()
     lower_text = full_text.lower()
     
@@ -335,13 +353,13 @@ Return JSON object:
     location_match = re.search(r'(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block|block\s*[a-z0-9]+)', lower_text, re.IGNORECASE)
     found_location = location_match.group(0).upper() if location_match else None
     
-    equipment_match = re.search(r'(projector|computer|pc|laptop|wifi|wi-fi|internet|ac|air conditioner|fan|water dispenser|bench|mic|speaker|light)', lower_text, re.IGNORECASE)
+    equipment_match = re.search(r'(projector|computer|pc|laptop|wifi|wi-fi|internet|ac|air conditioner|fan|water dispenser|bench|mic|speaker|light|board)', lower_text, re.IGNORECASE)
     found_equipment = equipment_match.group(0) if equipment_match else None
     
-    timing_match = re.search(r'(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks)', lower_text, re.IGNORECASE)
+    timing_match = re.search(r'(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks|days)', lower_text, re.IGNORECASE)
     found_timing = timing_match.group(0) if timing_match else None
     
-    impact_match = re.search(r'(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture)', lower_text, re.IGNORECASE)
+    impact_match = re.search(r'(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture|problem)', lower_text, re.IGNORECASE)
     found_impact = impact_match.group(0) if impact_match else None
 
     # Track missing pieces dynamically
@@ -473,10 +491,7 @@ def generate_questions_with_ai(req: FormGenerateRequest):
     api_key = req.api_key or os.getenv("GEMINI_API_KEY")
     
     if api_key:
-        try:
-            from google import genai
-            client = genai.Client(api_key=api_key)
-            prompt = f"""Extract key topics from the following document and generate a structured Google Form questionnaire.
+        prompt = f"""Extract key topics from the following document and generate a structured Google Form questionnaire.
 Return a valid JSON object with keys:
 "title" (string),
 "questions" (array of objects with keys: "id", "question_text", "question_type" ("MCQ" | "RATING" | "YES_NO" | "DROPDOWN" | "PARAGRAPH"), "options" (array of strings), "required" (boolean)).
@@ -484,14 +499,9 @@ Return a valid JSON object with keys:
 Document Text:
 "{req.document_text}"
 """
-            res = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config={"response_mime_type": "application/json"}
-            )
-            return json.loads(res.text)
-        except Exception as e:
-            print(f"Gemini Python SDK call error, using NLP topic parser: {e}")
+        gemini_res = _call_gemini_rest(prompt, api_key)
+        if gemini_res:
+            return gemini_res
 
     # Smart Dynamic NLP Document Question Extractor
     raw_text = req.document_text

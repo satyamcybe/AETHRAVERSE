@@ -7,11 +7,74 @@ export const getStoredApiKey = () => {
 };
 
 /**
+ * Direct REST caller to Google Gemini API
+ */
+export const callGeminiRestDirect = async (prompt, apiKey) => {
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+  for (const m of models) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json' }
+        })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const text = json.candidates[0].content.parts[0].text;
+        return JSON.parse(text);
+      }
+    } catch (e) {
+      console.warn(`Gemini direct model ${m} call notice:`, e);
+    }
+  }
+  return null;
+};
+
+/**
  * Evaluates feedback completeness and generates targeted follow-up questions iteratively
- * by sending dialogue history to backend AI API (`/api/feedback/analyze`).
+ * by sending dialogue history to backend AI API (`/api/feedback/analyze`) or Gemini REST API directly.
  */
 export const analyzeConversationalFeedback = async (conversationHistory, currentCategory = 'Infrastructure', providedApiKey = null) => {
   const apiKey = providedApiKey || getStoredApiKey();
+
+  // Try direct Gemini REST API call if key is present
+  if (apiKey) {
+    const formattedHistory = conversationHistory.map(item => `${item.role === 'assistant' ? 'AI Assistant' : 'Student'}: "${item.text}"`).join('\n');
+    const prompt = `You are LoopBack Institutional AI Assistant. Analyze the following multi-turn feedback conversation between a student and AI.
+Category: ${currentCategory}
+
+Conversation History:
+${formattedHistory}
+
+Your Goal: Evaluate if ALL 4 necessary institutional parameters are provided by the student:
+1. Specific Location (e.g., Room 304, Library 2nd Floor, Main Canteen)
+2. Frequency or When it started (e.g., Every lab class, Started 3 days ago)
+3. Specific Equipment/System/Faculty (e.g., Projector bulb, PC #12, Dr. Vance's lecture)
+4. Observed Impact/Severity (e.g., Halts practical exams, Wi-Fi drops during study)
+
+Calculate a completeness score (0 to 100%).
+If ANY parameter is missing, set isComplete = false and provide the exact next targeted follow-up question asking specifically for the missing detail (referencing details the student already said!).
+Only set isComplete = true and nextQuestion = null when ALL required information is present.
+
+Return ONLY a JSON object with this exact structure:
+{
+  "completenessScore": number (0-100),
+  "isComplete": boolean,
+  "nextQuestion": string or null,
+  "issueTitle": string,
+  "location": string,
+  "frequency": string,
+  "impact": "High" | "Medium" | "Low",
+  "sentiment": "Negative" | "Neutral" | "Positive",
+  "extractedDetails": [array of strings]
+}`;
+
+    const geminiResult = await callGeminiRestDirect(prompt, apiKey);
+    if (geminiResult) return geminiResult;
+  }
 
   // Primary: Call Backend FastAPI AI Endpoint
   try {
@@ -38,13 +101,13 @@ export const analyzeConversationalFeedback = async (conversationHistory, current
   const locationMatch = fullText.match(/(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block|block\s*[a-z0-9]+)/i);
   const foundLocation = locationMatch ? locationMatch[0].toUpperCase() : null;
 
-  const equipmentMatch = fullText.match(/(projector|computer|pc|laptop|wifi|wi-fi|internet|ac|air conditioner|fan|water dispenser|bench|mic|speaker|light)/i);
+  const equipmentMatch = fullText.match(/(projector|computer|pc|laptop|wifi|wi-fi|internet|ac|air conditioner|fan|water dispenser|bench|mic|speaker|light|board)/i);
   const foundEquipment = equipmentMatch ? equipmentMatch[0] : null;
 
-  const timingMatch = fullText.match(/(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks)/i);
+  const timingMatch = fullText.match(/(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks|days)/i);
   const foundTiming = timingMatch ? timingMatch[0] : null;
 
-  const impactMatch = fullText.match(/(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture)/i);
+  const impactMatch = fullText.match(/(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture|problem)/i);
   const foundImpact = impactMatch ? impactMatch[0] : null;
 
   const missing = [];
