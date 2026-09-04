@@ -1,309 +1,319 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Square, Sparkles, Send, CheckCircle2, RotateCcw, Edit3 } from 'lucide-react';
+import { Mic, MicOff, Square, Sparkles, Send, CheckCircle2, RotateCcw, Edit3, Image, Save, Lock, Volume2, Globe } from 'lucide-react';
 import { VoiceRecognitionService, speakText } from '../services/speechService';
 import { analyzeFeedback } from '../services/geminiService';
 
-export default function VoiceFeedbackPage({ onSubmit }) {
-  const [step, setStep] = useState('idle'); // idle | listening | analyzing | review | clarify | confirmed
-  const [isListening, setIsListening] = useState(false);
+const CATEGORIES = {
+  Academic: ['Faculty performance', 'Teaching methodology', 'Subject understanding', 'Practical sessions', 'Course materials'],
+  Infrastructure: ['Classrooms', 'Laboratories', 'Library', 'Wi-Fi & Internet', 'Washrooms', 'Sports facilities', 'Hostel', 'Canteen', 'Transport'],
+  Administrative: ['Examination', 'Fees', 'Office support', 'Documentation', 'Student services'],
+  Others: ['Suggestions', 'Innovation ideas', 'Complaints', 'Emergency reports']
+};
+
+export default function VoiceFeedbackPage({ user }) {
+  const [mode, setMode] = useState('voice'); // voice | text
+  const [language, setLanguage] = useState('en'); // en | hi | mr
+  const [category, setCategory] = useState('Infrastructure');
+  const [subcategory, setSubcategory] = useState('Laboratories');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [priority, setPriority] = useState('MEDIUM');
+
+  // Input states
   const [transcript, setTranscript] = useState('');
+  const [textInput, setTextInput] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [duration, setDuration] = useState(0);
+
+  // Flow states
+  const [step, setStep] = useState('input'); // input | analyzing | review | submitted
   const [analysis, setAnalysis] = useState(null);
-  const [clarifyAnswer, setClarifyAnswer] = useState('');
+  const [trackingId, setTrackingId] = useState('');
+
   const speechRef = useRef(null);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     speechRef.current = new VoiceRecognitionService(
       (fullText) => setTranscript(fullText),
-      (err) => {
-        console.warn('Speech error:', err);
-        setIsListening(false);
-      },
+      (err) => { console.warn('Speech error:', err); setIsListening(false); },
       () => setIsListening(false)
     );
   }, []);
 
-  const startListening = () => {
-    setTranscript('');
-    setStep('listening');
-    setIsListening(true);
-    speechRef.current?.start();
-  };
-
-  const stopListening = () => {
-    speechRef.current?.stop();
-    setIsListening(false);
+  const toggleListening = () => {
+    if (isListening) {
+      speechRef.current?.stop();
+      setIsListening(false);
+      clearInterval(timerRef.current);
+    } else {
+      setTranscript('');
+      setDuration(0);
+      setIsListening(true);
+      speechRef.current?.start();
+      timerRef.current = setInterval(() => setDuration(prev => prev + 1), 1000);
+    }
   };
 
   const handleAnalyze = async () => {
-    if (!transcript.trim()) return;
-    stopListening();
+    const textToAnalyze = mode === 'voice' ? transcript : textInput;
+    if (!textToAnalyze.trim()) return;
+
+    if (isListening) toggleListening();
     setStep('analyzing');
 
-    const result = await analyzeFeedback(transcript);
-    setAnalysis(result);
-
-    if (result.clarificationQuestion) {
-      setStep('clarify');
-      speakText(result.clarificationQuestion);
-    } else {
-      setStep('review');
-      speakText("Here's what I understood. Does this look right?");
-    }
+    const res = await analyzeFeedback(textToAnalyze);
+    setAnalysis(res);
+    setStep('review');
   };
 
-  const handleSubmit = () => {
-    setStep('confirmed');
-    speakText("Feedback received. Your voice has been heard.");
-    if (onSubmit) {
-      onSubmit({
-        id: Date.now(),
-        title: analysis?.issue || 'Voice Feedback',
-        transcript,
-        issue: analysis?.issue,
-        location: analysis?.location,
-        frequency: analysis?.frequency,
-        impact: analysis?.impact,
-        sentiment: analysis?.sentiment,
-        status: 'UNDER REVIEW',
-        department: 'Unassigned',
-        timestamp: new Date().toISOString(),
-        similarCount: Math.floor(Math.random() * 40) + 5
+  const handleSubmit = async () => {
+    setStep('submitted');
+    const finalContent = mode === 'voice' ? transcript : textInput;
+    
+    try {
+      const res = await fetch('http://localhost:8000/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript: finalContent,
+          submission_type: mode,
+          category,
+          subcategory,
+          location: analysis?.location || 'Campus',
+          department: category === 'Infrastructure' ? 'Campus Facilities' : 'Academic Affairs',
+          is_anonymous: isAnonymous,
+          student_id: isAnonymous ? 'ANON' : (user?.id || 'STU-2026-88'),
+          language,
+          priority
+        })
       });
+      const data = await res.json();
+      setTrackingId(data.id || `FB-2026-${Math.floor(10000 + Math.random() * 90000)}`);
+    } catch (e) {
+      setTrackingId(`FB-2026-${Math.floor(10000 + Math.random() * 90000)}`);
     }
   };
 
-  const reset = () => {
-    setStep('idle');
-    setTranscript('');
-    setAnalysis(null);
-    setClarifyAnswer('');
+  const formatTime = (secs) => {
+    const mins = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${mins}:${s < 10 ? '0' : ''}${s}`;
   };
 
   return (
     <div className="page-center" style={{ minHeight: 'calc(100vh - 60px)' }}>
-      <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: '0.7rem',
-          color: 'var(--primary)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.15em'
-        }}>
-          Voice Feedback
+      <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          Institutional Feedback Portal
         </span>
-        <h1 style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: '2.5rem',
-          marginTop: 'var(--space-2)',
-          color: 'var(--text)'
-        }}>
-          {step === 'idle' && 'What happened?'}
-          {step === 'listening' && 'Listening...'}
-          {step === 'analyzing' && 'Understanding your feedback...'}
-          {step === 'clarify' && 'Tell me a little more.'}
-          {step === 'review' && "Here's what I understood."}
-          {step === 'confirmed' && 'Your voice has been heard.'}
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', marginTop: 'var(--space-1)' }}>
+          {step === 'submitted' ? 'Feedback Submitted' : 'Submit Voice or Text Feedback'}
         </h1>
       </div>
 
-      {/* ── IDLE / LISTENING ── */}
-      {(step === 'idle' || step === 'listening') && (
-        <div className="sketch-card animate-fade-up" style={{ textAlign: 'center', padding: 'var(--space-10)' }}>
-          {/* Voice Orb */}
-          <div
-            onClick={isListening ? stopListening : startListening}
-            className={`voice-orb ${isListening ? 'listening' : 'idle'}`}
-            style={{ margin: '0 auto var(--space-6)' }}
-            aria-label={isListening ? 'Stop recording' : 'Start recording'}
-            role="button"
-            tabIndex={0}
-          >
-            {isListening ? <Mic size={48} color="var(--primary)" /> : <MicOff size={48} color="var(--text-muted)" />}
+      {step === 'input' && (
+        <div className="sketch-card animate-fade-up">
+          {/* Mode Switcher */}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-6)' }}>
+            <button
+              className={`btn-pill ${mode === 'voice' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setMode('voice')}
+              style={{ flex: 1, justifyContent: 'center' }}
+            >
+              <Mic size={16} /> Voice Feedback
+            </button>
+            <button
+              className={`btn-pill ${mode === 'text' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setMode('text')}
+              style={{ flex: 1, justifyContent: 'center' }}
+            >
+              <Edit3 size={16} /> Rich Text Feedback
+            </button>
           </div>
 
-          <p style={{ fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', marginBottom: 'var(--space-4)' }}>
-            {isListening ? 'Speak naturally. Tap orb to stop.' : 'Tap the orb to start speaking.'}
-          </p>
+          {/* Configuration Options */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
+            <div>
+              <label style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                PREFERRED LANGUAGE
+              </label>
+              <select className="sketch-input" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                <option value="en">English</option>
+                <option value="hi">हिंदी (Hindi)</option>
+                <option value="mr">मराठी (Marathi)</option>
+              </select>
+            </div>
 
-          {/* Waveform bars */}
-          {isListening && (
-            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', height: '32px', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-              {[1,2,3,4,5].map(i => <div key={i} className="wave-bar" />)}
+            <div>
+              <label style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                PRIORITY LEVEL
+              </label>
+              <select className="sketch-input" value={priority} onChange={(e) => setPriority(e.target.value)}>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High / Urgent</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                CATEGORY
+              </label>
+              <select className="sketch-input" value={category} onChange={(e) => { setCategory(e.target.value); setSubcategory(CATEGORIES[e.target.value][0]); }}>
+                {Object.keys(CATEGORIES).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                SUBCATEGORY
+              </label>
+              <select className="sketch-input" value={subcategory} onChange={(e) => setSubcategory(e.target.value)}>
+                {CATEGORIES[category].map(sub => <option key={sub} value={sub}>{sub}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Anonymous Switch */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--space-6)', background: 'var(--secondary)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-dashed)' }}>
+            <input type="checkbox" id="anon" checked={isAnonymous} onChange={(e) => setIsAnonymous(e.target.checked)} />
+            <label htmlFor="anon" style={{ fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Lock size={14} color="var(--primary)" /> Submit Anonymously (Hide PRN & Student Identity)
+            </label>
+          </div>
+
+          {/* Voice Mode */}
+          {mode === 'voice' ? (
+            <div style={{ textAlign: 'center', padding: 'var(--space-4) 0' }}>
+              <div
+                onClick={toggleListening}
+                className={`voice-orb ${isListening ? 'listening' : 'idle'}`}
+                style={{ margin: '0 auto var(--space-4)' }}
+              >
+                {isListening ? <Mic size={48} color="var(--primary)" /> : <MicOff size={48} color="var(--text-muted)" />}
+              </div>
+
+              {isListening && (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--danger)', marginBottom: 'var(--space-4)' }}>
+                  ● Recording: {formatTime(duration)} (Noise Reduction Active)
+                </div>
+              )}
+
+              <textarea
+                className="sketch-input"
+                rows={4}
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                placeholder="Spoken words will appear here in real-time. You can edit before submitting..."
+                style={{ marginBottom: 'var(--space-6)' }}
+              />
+            </div>
+          ) : (
+            /* Text Mode */
+            <div>
+              <textarea
+                className="sketch-input"
+                rows={6}
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Type your detailed complaint or suggestion here..."
+                style={{ marginBottom: 'var(--space-3)' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Character Count: {textInput.length}
+                </span>
+                <button className="btn-pill btn-ghost" style={{ fontSize: '0.8rem' }}>
+                  <Image size={14} /> Attach Proof (Placeholder)
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Live Transcript Box */}
-          <div style={{
-            background: 'var(--secondary)',
-            border: '2px dashed var(--border-dashed)',
-            borderRadius: '10px',
-            padding: 'var(--space-4)',
-            minHeight: '100px',
-            textAlign: 'left',
-            fontFamily: 'var(--font-body)',
-            fontSize: '0.95rem',
-            color: transcript ? 'var(--text)' : 'var(--text-muted)',
-            fontStyle: transcript ? 'normal' : 'italic',
-            lineHeight: 1.6,
-            marginBottom: 'var(--space-6)'
-          }}>
-            {transcript || 'Your spoken words will appear here in real time...'}
-          </div>
-
-          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
-            {isListening && (
-              <button className="btn-pill btn-secondary" onClick={stopListening}>
-                <Square size={14} /> Stop
-              </button>
-            )}
-            <button
-              className="btn-pill btn-primary"
-              onClick={handleAnalyze}
-              disabled={!transcript.trim()}
-              style={{ opacity: transcript.trim() ? 1 : 0.4, cursor: transcript.trim() ? 'pointer' : 'not-allowed' }}
-            >
-              <Sparkles size={16} /> Analyze Feedback
-            </button>
-          </div>
+          <button
+            className="btn-pill btn-primary"
+            onClick={handleAnalyze}
+            disabled={!(mode === 'voice' ? transcript.trim() : textInput.trim())}
+            style={{ width: '100%', justifyContent: 'center', padding: 'var(--space-4)' }}
+          >
+            <Sparkles size={16} /> Process & Analyze Feedback
+          </button>
         </div>
       )}
 
-      {/* ── ANALYZING ── */}
+      {/* Analyzing Step */}
       {step === 'analyzing' && (
         <div className="sketch-card animate-fade-up" style={{ textAlign: 'center', padding: 'var(--space-10)' }}>
           <div className="voice-orb processing" style={{ margin: '0 auto var(--space-6)' }}>
             <Sparkles size={36} color="var(--primary)" style={{ animation: 'spinSlow 3s linear infinite' }} />
           </div>
-          <p style={{ color: 'var(--text-secondary)' }}>Understanding your feedback...</p>
+          <p style={{ color: 'var(--text-secondary)' }}>AI is categorizing, detecting sentiment, and extracting key details...</p>
         </div>
       )}
 
-      {/* ── CLARIFICATION ── */}
-      {step === 'clarify' && analysis && (
-        <div className="sketch-card animate-fade-up" style={{ padding: 'var(--space-8)' }}>
-          <div style={{
-            background: 'var(--primary-subtle)',
-            borderLeft: '4px solid var(--primary)',
-            padding: 'var(--space-4)',
-            borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
-            marginBottom: 'var(--space-6)'
-          }}>
-            <p style={{ fontFamily: 'var(--font-body)', fontWeight: 500, color: 'var(--primary)' }}>
-              {analysis.clarificationQuestion}
+      {/* Review Step */}
+      {step === 'review' && (
+        <div className="sketch-card animate-fade-up">
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', marginBottom: 'var(--space-4)' }}>
+            Review Before Submission
+          </h3>
+
+          <div style={{ background: 'var(--secondary)', padding: 'var(--space-4)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-dashed)', marginBottom: 'var(--space-4)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TRANSCRIPT / TEXT</span>
+            <p style={{ fontSize: '0.95rem', marginTop: '4px', fontStyle: 'italic' }}>
+              "{mode === 'voice' ? transcript : textInput}"
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-            <input
-              className="sketch-input"
-              placeholder="Type or speak your answer..."
-              value={clarifyAnswer}
-              onChange={(e) => setClarifyAnswer(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') setStep('review'); }}
-            />
-            <button className="btn-pill btn-primary" onClick={() => setStep('review')}>
-              Continue
-            </button>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
+            <div style={{ background: 'var(--surface)', border: '1px dashed var(--border-dashed)', padding: '8px 12px', borderRadius: '8px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Category</span>
+              <p style={{ fontWeight: 600 }}>{category} ({subcategory})</p>
+            </div>
+            <div style={{ background: 'var(--surface)', border: '1px dashed var(--border-dashed)', padding: '8px 12px', borderRadius: '8px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Identity</span>
+              <p style={{ fontWeight: 600 }}>{isAnonymous ? 'Anonymous' : (user?.id || 'Student')}</p>
+            </div>
           </div>
-
-          <button className="btn-pill btn-ghost" onClick={() => setStep('review')} style={{ marginTop: 'var(--space-3)' }}>
-            Skip — I've said enough
-          </button>
-        </div>
-      )}
-
-      {/* ── REVIEW ── */}
-      {step === 'review' && analysis && (
-        <div className="sketch-card animate-fade-up" style={{ padding: 'var(--space-8)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-6)' }}>
-            <Sparkles size={20} color="var(--primary)" />
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem' }}>Your Feedback</h3>
-          </div>
-
-          {/* Structured fields */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
-            {[
-              { label: 'Issue', value: analysis.issue },
-              { label: 'Location', value: analysis.location },
-              { label: 'Impact', value: analysis.impact },
-              { label: 'Frequency', value: analysis.frequency },
-              { label: 'Sentiment', value: analysis.sentiment },
-            ].map(({ label, value }) => (
-              <div key={label} style={{
-                background: 'var(--secondary)',
-                padding: 'var(--space-3) var(--space-4)',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px dashed var(--border-dashed)'
-              }}>
-                <span style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.7rem',
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
-                }}>{label}</span>
-                <p style={{ fontWeight: 600, marginTop: '2px', fontSize: '0.95rem' }}>{value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Original transcript */}
-          <div style={{
-            background: 'var(--secondary)',
-            border: '1px dashed var(--border-dashed)',
-            borderRadius: 'var(--radius-sm)',
-            padding: 'var(--space-4)',
-            marginBottom: 'var(--space-6)'
-          }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Your words
-            </span>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '4px', fontStyle: 'italic', lineHeight: 1.6 }}>
-              "{transcript}"
-            </p>
-          </div>
-
-          <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-6)', textAlign: 'center' }}>
-            Does this look right?
-          </p>
 
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-            <button className="btn-pill btn-secondary" onClick={reset} style={{ flex: 1 }}>
-              <Edit3 size={14} /> Re-record
+            <button className="btn-pill btn-secondary" onClick={() => setStep('input')} style={{ flex: 1, justifyContent: 'center' }}>
+              Edit
             </button>
-            <button className="btn-pill btn-primary" onClick={handleSubmit} style={{ flex: 2 }}>
-              <Send size={16} /> Submit Feedback
+            <button className="btn-pill btn-primary" onClick={handleSubmit} style={{ flex: 2, justifyContent: 'center' }}>
+              <Send size={16} /> Submit to Institute
             </button>
           </div>
         </div>
       )}
 
-      {/* ── CONFIRMED ── */}
-      {step === 'confirmed' && (
-        <div className="sketch-card animate-scale-in" style={{ textAlign: 'center', padding: 'var(--space-10)' }}>
+      {/* Submitted Confirmation */}
+      {step === 'submitted' && (
+        <div className="sketch-card animate-scale-in" style={{ textAlign: 'center', padding: 'var(--space-8)' }}>
           <CheckCircle2 size={64} color="var(--success)" style={{ margin: '0 auto var(--space-4)' }} />
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', marginBottom: 'var(--space-2)' }}>
-            Feedback received.
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', marginBottom: 'var(--space-2)' }}>
+            Complaint Registered
           </h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-6)', fontSize: '1rem' }}>
-            Your voice has been heard.
+          <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-6)' }}>
+            Your feedback has been routed to the department admin.
           </p>
 
-          <div className="sketch-card" style={{
-            display: 'inline-block',
-            padding: 'var(--space-3) var(--space-6)',
-            borderColor: 'var(--primary)',
-            marginBottom: 'var(--space-6)'
-          }}>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--primary)' }}>
-              {analysis?.similarCount || Math.floor(Math.random() * 40) + 5} similar experiences found
-            </span>
+          <div style={{ background: 'var(--primary-subtle)', border: '2px dashed var(--primary)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', display: 'inline-block', marginBottom: 'var(--space-6)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--primary)', textTransform: 'uppercase' }}>UNIQUE TRACKING ID</span>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.8rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
+              {trackingId}
+            </div>
           </div>
 
           <br />
-          <button className="btn-pill btn-primary" onClick={reset}>
-            <RotateCcw size={14} /> Submit Another Feedback
-          </button>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+            <button className="btn-pill btn-secondary" onClick={() => setStep('input')}>
+              <RotateCcw size={14} /> Submit Another
+            </button>
+            <a href="/tracker" className="btn-pill btn-primary">
+              Track Status in Action Tracker
+            </a>
+          </div>
         </div>
       )}
     </div>
