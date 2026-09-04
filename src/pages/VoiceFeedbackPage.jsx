@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Square, Sparkles, Send, CheckCircle2, RotateCcw, Edit3, Image, Save, Lock, Volume2, Globe, MessageSquare, ArrowRight, HelpCircle } from 'lucide-react';
 import { VoiceRecognitionService, speakText } from '../services/speechService';
-import { analyzeConversationalFeedback } from '../services/geminiService';
+import { analyzeConversationalFeedback, getStoredApiKey } from '../services/geminiService';
 
 const CATEGORIES = {
   Academic: ['Faculty performance', 'Teaching methodology', 'Subject understanding', 'Practical sessions', 'Course materials'],
@@ -17,6 +17,8 @@ export default function VoiceFeedbackPage({ user }) {
   const [subcategory, setSubcategory] = useState('Laboratories');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [priority, setPriority] = useState('MEDIUM');
+  const [apiKey, setApiKey] = useState(getStoredApiKey());
+  const [showKeyInput, setShowKeyInput] = useState(false);
 
   // Input states
   const [transcript, setTranscript] = useState('');
@@ -86,7 +88,7 @@ export default function VoiceFeedbackPage({ user }) {
     const history = [{ role: 'user', text: initialText }];
     setConversationHistory(history);
 
-    const res = await analyzeConversationalFeedback(history, category);
+    const res = await analyzeConversationalFeedback(history, category, apiKey);
     setAnalysis(res);
 
     if (!res.isComplete && res.nextQuestion) {
@@ -119,7 +121,7 @@ export default function VoiceFeedbackPage({ user }) {
     setConversationHistory(updatedHistory);
     setFollowUpAnswer('');
 
-    const res = await analyzeConversationalFeedback(updatedHistory, category);
+    const res = await analyzeConversationalFeedback(updatedHistory, category, apiKey);
     setAnalysis(res);
 
     if (!res.isComplete && res.nextQuestion) {
@@ -186,6 +188,41 @@ export default function VoiceFeedbackPage({ user }) {
       {/* Step 1: Initial Input */}
       {step === 'input' && (
         <div className="sketch-card animate-fade-up">
+          {/* Optional Gemini API Key Drawer Toggle */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-4)' }}>
+            <button
+              className="btn-pill btn-secondary"
+              style={{ fontSize: '0.75rem', padding: '4px 12px' }}
+              onClick={() => setShowKeyInput(!showKeyInput)}
+            >
+              <Sparkles size={12} color="var(--primary)" /> {apiKey ? 'Gemini Live Key Connected' : 'Configure Gemini API Key'}
+            </button>
+          </div>
+
+          {showKeyInput && (
+            <div style={{ background: 'var(--surface)', border: '1px dashed var(--primary)', padding: 'var(--space-3)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-4)' }}>
+              <label style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--primary)', display: 'block', marginBottom: '4px' }}>
+                GOOGLE GEMINI API KEY (Saved in browser storage)
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="password"
+                  className="sketch-input"
+                  placeholder="AIzaSy..."
+                  value={apiKey}
+                  onChange={(e) => {
+                    setApiKey(e.target.value);
+                    localStorage.setItem('gemini_api_key', e.target.value);
+                  }}
+                  style={{ fontSize: '0.85rem' }}
+                />
+                <button className="btn-pill btn-primary" style={{ fontSize: '0.75rem' }} onClick={() => setShowKeyInput(false)}>
+                  Save
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Mode Switcher */}
           <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-6)', flexWrap: 'wrap' }}>
             <button

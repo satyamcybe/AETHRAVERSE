@@ -350,16 +350,17 @@ Return JSON object:
     lower_text = full_text.lower()
     
     # Extract entities mentioned by student
-    location_match = re.search(r'(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block|block\s*[a-z0-9]+)', lower_text, re.IGNORECASE)
+    location_match = re.search(r'\b(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block|block\s*[a-z0-9]+)\b', lower_text, re.IGNORECASE)
     found_location = location_match.group(0).upper() if location_match else None
     
-    equipment_match = re.search(r'(projector|computer|pc|laptop|wifi|wi-fi|internet|ac|air conditioner|fan|water dispenser|bench|mic|speaker|light|board)', lower_text, re.IGNORECASE)
+    # Strict word boundaries for equipment (prevents 'place' from matching 'ac'!)
+    equipment_match = re.search(r'\b(projector|computer|pc|laptop|wifi|wi-fi|internet|\bac\b|air conditioner|fan|water dispenser|bench|chair|seat|table|mic|speaker|light|board)\b', lower_text, re.IGNORECASE)
     found_equipment = equipment_match.group(0) if equipment_match else None
     
-    timing_match = re.search(r'(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks|days)', lower_text, re.IGNORECASE)
+    timing_match = re.search(r'\b(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks|days)\b', lower_text, re.IGNORECASE)
     found_timing = timing_match.group(0) if timing_match else None
     
-    impact_match = re.search(r'(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture|problem)', lower_text, re.IGNORECASE)
+    impact_match = re.search(r'\b(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture|problem|no place|no seat)\b', lower_text, re.IGNORECASE)
     found_impact = impact_match.group(0) if impact_match else None
 
     # Track missing pieces dynamically

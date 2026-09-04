@@ -7,24 +7,37 @@ export const getStoredApiKey = () => {
 };
 
 /**
- * Direct REST caller to Google Gemini API
+ * Robust direct REST caller to Google Gemini API with JSON fence extraction.
  */
 export const callGeminiRestDirect = async (prompt, apiKey) => {
-  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+  const cleanKey = (apiKey || '').trim();
+  if (!cleanKey) return null;
+
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
   for (const m of models) {
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${cleanKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json' }
+          contents: [{ parts: [{ text: prompt }] }]
         })
       });
       if (res.ok) {
         const json = await res.json();
-        const text = json.candidates[0].content.parts[0].text;
-        return JSON.parse(text);
+        const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        
+        // Strip markdown code fences (```json ... ```)
+        const cleanText = rawText.replace(/```json\s*/gi, '').replace(/```\s*$/gi, '').trim();
+        const jsonStart = cleanText.indexOf('{');
+        const jsonEnd = cleanText.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          const jsonSub = cleanText.substring(jsonStart, jsonEnd + 1);
+          const parsed = JSON.parse(jsonSub);
+          if (parsed && typeof parsed.completenessScore !== 'undefined') {
+            return parsed;
+          }
+        }
       }
     } catch (e) {
       console.warn(`Gemini direct model ${m} call notice:`, e);
@@ -35,13 +48,13 @@ export const callGeminiRestDirect = async (prompt, apiKey) => {
 
 /**
  * Evaluates feedback completeness and generates targeted follow-up questions iteratively
- * by sending dialogue history to backend AI API (`/api/feedback/analyze`) or Gemini REST API directly.
+ * by sending dialogue history to Google Gemini API directly or backend fallback API.
  */
 export const analyzeConversationalFeedback = async (conversationHistory, currentCategory = 'Infrastructure', providedApiKey = null) => {
   const apiKey = providedApiKey || getStoredApiKey();
 
   // Try direct Gemini REST API call if key is present
-  if (apiKey) {
+  if (apiKey && apiKey.trim()) {
     const formattedHistory = conversationHistory.map(item => `${item.role === 'assistant' ? 'AI Assistant' : 'Student'}: "${item.text}"`).join('\n');
     const prompt = `You are LoopBack Institutional AI Assistant. Analyze the following multi-turn feedback conversation between a student and AI.
 Category: ${currentCategory}
@@ -59,7 +72,7 @@ Calculate a completeness score (0 to 100%).
 If ANY parameter is missing, set isComplete = false and provide the exact next targeted follow-up question asking specifically for the missing detail (referencing details the student already said!).
 Only set isComplete = true and nextQuestion = null when ALL required information is present.
 
-Return ONLY a JSON object with this exact structure:
+Return ONLY a valid JSON object with this exact structure:
 {
   "completenessScore": number (0-100),
   "isComplete": boolean,
@@ -76,7 +89,7 @@ Return ONLY a JSON object with this exact structure:
     if (geminiResult) return geminiResult;
   }
 
-  // Primary: Call Backend FastAPI AI Endpoint
+  // Secondary: Call Backend FastAPI AI Endpoint
   try {
     const res = await fetch('http://localhost:8000/api/feedback/analyze', {
       method: 'POST',
@@ -95,19 +108,20 @@ Return ONLY a JSON object with this exact structure:
     console.warn('Backend API feedback analysis fetch notice:', err);
   }
 
-  // Standalone Client Triage (if backend server is offline)
+  // Standalone Client Triage with strict word boundaries
   const fullText = conversationHistory.map(c => c.text).join(' ').toLowerCase();
 
-  const locationMatch = fullText.match(/(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block|block\s*[a-z0-9]+)/i);
+  const locationMatch = fullText.match(/\b(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block|block\s*[a-z0-9]+)\b/i);
   const foundLocation = locationMatch ? locationMatch[0].toUpperCase() : null;
 
-  const equipmentMatch = fullText.match(/(projector|computer|pc|laptop|wifi|wi-fi|internet|ac|air conditioner|fan|water dispenser|bench|mic|speaker|light|board)/i);
+  // Strict word boundaries for equipment (prevents 'place' from matching 'ac'!)
+  const equipmentMatch = fullText.match(/\b(projector|computer|pc|laptop|wifi|wi-fi|internet|\bac\b|air conditioner|fan|water dispenser|bench|chair|seat|table|mic|speaker|light|board)\b/i);
   const foundEquipment = equipmentMatch ? equipmentMatch[0] : null;
 
-  const timingMatch = fullText.match(/(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks|days)/i);
+  const timingMatch = fullText.match(/\b(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks|days)\b/i);
   const foundTiming = timingMatch ? timingMatch[0] : null;
 
-  const impactMatch = fullText.match(/(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture|problem)/i);
+  const impactMatch = fullText.match(/\b(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture|problem|no place|no seat)\b/i);
   const foundImpact = impactMatch ? impactMatch[0] : null;
 
   const missing = [];
@@ -124,12 +138,12 @@ Return ONLY a JSON object with this exact structure:
     const nextTarget = missing[0];
     if (nextTarget === 'location') {
       nextQuestion = foundEquipment
-        ? `Got it, the issue with the ${foundEquipment} needs attention. Which specific room number, lab, or floor location is this located in?`
+        ? `Got it, the issue regarding ${foundEquipment} needs attention. Which specific room number, lab, or floor location is this located in?`
         : 'Which specific room number, lab, or floor location is experiencing this issue?';
     } else if (nextTarget === 'equipment') {
       nextQuestion = foundLocation
-        ? `Understood, noted location ${foundLocation}. Could you specify which exact equipment, system, or facility in ${foundLocation} is having trouble?`
-        : 'Could you specify which exact equipment, computer, or facility is affected?';
+        ? `Understood, noted location ${foundLocation}. Could you specify which exact equipment, seating, or facility in ${foundLocation} is having trouble?`
+        : 'Could you specify which exact equipment, seating, or facility is affected?';
     } else if (nextTarget === 'timing') {
       const itemRef = foundEquipment ? `the ${foundEquipment} issue` : 'this issue';
       const locRef = foundLocation ? ` in ${foundLocation}` : '';
