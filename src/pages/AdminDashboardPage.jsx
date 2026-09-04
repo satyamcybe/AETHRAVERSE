@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, AlertCircle, CheckCircle2, Users, TrendingUp, Mic, ArrowUpRight, ChevronRight, Play, Download, Sparkles, PieChart, Shield, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, AlertCircle, CheckCircle2, Users, TrendingUp, Mic, ArrowUpRight, ChevronRight, Play, Download, Sparkles, PieChart, Shield, FileSpreadsheet, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const MOCK_CLUSTERS = [
   {
@@ -69,8 +70,11 @@ export default function AdminDashboardPage({ user }) {
           </h1>
         </div>
 
-        {/* NAAC/NBA Export Buttons */}
+        {/* NAAC/NBA Export & AI Form Generator Buttons */}
         <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          <Link to="/ai-form-generator" className="btn-pill btn-primary" style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
+            <Sparkles size={14} /> AI Google Form Generator
+          </Link>
           <button className="btn-pill btn-secondary" onClick={() => exportReport('PDF')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>
             <Download size={14} /> PDF Report
           </button>

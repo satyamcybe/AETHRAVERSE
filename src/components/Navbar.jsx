@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Mic, LayoutDashboard, Search, FileText, UserCheck, Activity, LogOut, LogIn, Home } from 'lucide-react';
+import { Mic, LayoutDashboard, Search, FileText, UserCheck, Activity, LogOut, LogIn, Home, Sparkles } from 'lucide-react';
 
 export default function Navbar({ user, onLogout }) {
   const { pathname } = useLocation();
@@ -16,6 +16,7 @@ export default function Navbar({ user, onLogout }) {
   const adminLinks = [
     { to: '/', label: 'Home', icon: Home, shortLabel: 'Home' },
     { to: '/admin', label: 'Admin Command', icon: LayoutDashboard, shortLabel: 'Command' },
+    { to: '/ai-form-generator', label: 'AI Form Generator', icon: Sparkles, shortLabel: 'AI Forms' },
     { to: '/tracker', label: 'Action Tracker', icon: Search, shortLabel: 'Tracker' },
     { to: '/pulse', label: 'Analytics Pulse', icon: Activity, shortLabel: 'Pulse' },
   ];

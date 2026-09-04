@@ -9,11 +9,14 @@ import ActionTrackerPage from './pages/ActionTrackerPage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import PulsePage from './pages/PulsePage';
+import AiFormGeneratorPage from './pages/AiFormGeneratorPage';
+import PublicFormPage from './pages/PublicFormPage';
+import FormAnalyticsPage from './pages/FormAnalyticsPage';
 
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isLandingOrLogin = location.pathname === '/' || location.pathname === '/login';
+  const isLandingOrLogin = location.pathname === '/' || location.pathname === '/login' || location.pathname.startsWith('/form/');
 
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('loopback_user');
@@ -47,6 +50,9 @@ export default function App() {
         <Route path="/tracker" element={<ActionTrackerPage user={user} />} />
         <Route path="/student-dashboard" element={<StudentDashboardPage user={user} />} />
         <Route path="/admin" element={<AdminDashboardPage user={user} />} />
+        <Route path="/ai-form-generator" element={<AiFormGeneratorPage user={user} />} />
+        <Route path="/form/:formId" element={<PublicFormPage user={user} />} />
+        <Route path="/form-analytics/:formId" element={<FormAnalyticsPage user={user} />} />
         <Route path="/pulse" element={<PulsePage user={user} />} />
       </Routes>
     </>
