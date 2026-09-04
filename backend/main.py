@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(
     title="LoopBack Institutional Voice Feedback & AI Form Generator API",
     description="Backend for Voice Feedback & AI Google Form Generator Platform",
-    version="2.6.0"
+    version="2.7.0"
 )
 
 app.add_middleware(
@@ -66,6 +66,11 @@ class StatusUpdate(BaseModel):
 class VerificationRequest(BaseModel):
     satisfied: bool
     remarks: Optional[str] = None
+
+class AnalyzeFeedbackRequest(BaseModel):
+    conversation_history: List[Dict[str, Any]]
+    category: Optional[str] = "Infrastructure"
+    api_key: Optional[str] = None
 
 # AI Form Generator Models
 class FormGenerateRequest(BaseModel):
@@ -168,34 +173,10 @@ def _seed_initial():
                 "qr_code_data": "http://localhost:5173/form/FORM-2026-101",
                 "created_at": "2026-09-01T09:00:00Z",
                 "questions": [
-                    {
-                        "id": "q1",
-                        "question_text": "Which academic department do you belong to?",
-                        "question_type": "DROPDOWN",
-                        "options": ["Computer Engineering", "Information Technology", "Mechanical", "Civil", "Electrical"],
-                        "required": True
-                    },
-                    {
-                        "id": "q2",
-                        "question_text": "Rate the teaching clarity and practical demonstrations of your core course faculty.",
-                        "question_type": "RATING",
-                        "options": ["1 - Poor", "2 - Fair", "3 - Average", "4 - Good", "5 - Excellent"],
-                        "required": True
-                    },
-                    {
-                        "id": "q3",
-                        "question_text": "Are you facing performance freezes or hardware issues in Computer Lab 304?",
-                        "question_type": "YES_NO",
-                        "options": ["Yes", "No"],
-                        "required": True
-                    },
-                    {
-                        "id": "q4",
-                        "question_text": "What specific improvements would you suggest for library Wi-Fi & study areas?",
-                        "question_type": "PARAGRAPH",
-                        "options": [],
-                        "required": False
-                    }
+                    { "id": "q1", "question_text": "Which academic department do you belong to?", "question_type": "DROPDOWN", "options": ["Computer Engineering", "Information Technology", "Mechanical", "Civil"], "required": True },
+                    { "id": "q2", "question_text": "Rate the teaching clarity and practical demonstrations of your core course faculty.", "question_type": "RATING", "options": ["1 - Poor", "2 - Fair", "3 - Average", "4 - Good", "5 - Excellent"], "required": True },
+                    { "id": "q3", "question_text": "Are you facing performance freezes or hardware issues in Computer Lab 304?", "question_type": "YES_NO", "options": ["Yes", "No"], "required": True },
+                    { "id": "q4", "question_text": "What specific improvements would you suggest for library Wi-Fi & study areas?", "question_type": "PARAGRAPH", "options": [], "required": False }
                 ]
             },
             {
@@ -257,7 +238,7 @@ _seed_initial()
 
 @app.get("/api/health")
 def health():
-    return {"status": "healthy", "platform": "LoopBack Voice Institutional & AI Form Generator v2.6"}
+    return {"status": "healthy", "platform": "LoopBack Voice Institutional & AI Form Generator v2.7"}
 
 # --- Feedback API Endpoints ---
 @app.get("/api/feedback")
@@ -296,6 +277,129 @@ def create_feedback(submission: FeedbackSubmission):
     data.insert(0, new_fb)
     _save_json(FEEDBACK_FILE, data)
     return new_fb
+
+@app.post("/api/feedback/analyze")
+def analyze_feedback_ai(req: AnalyzeFeedbackRequest):
+    """
+    Evaluates multi-turn student voice/text conversation and generates targeted AI follow-up questions
+    dynamically using Google Gemini 2.5 Flash API or smart contextual NLP triage.
+    """
+    api_key = req.api_key or os.getenv("GEMINI_API_KEY")
+    history_text = "\n".join([f"{item.get('role', 'user')}: {item.get('text', '')}" for item in req.conversation_history])
+    
+    if api_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            prompt = f"""You are LoopBack Institutional AI Triage Assistant.
+Category: {req.category}
+
+Conversation History so far:
+{history_text}
+
+Evaluate if ALL necessary institutional ticket details are present:
+1. Specific Location (Room, Lab, Building, Floor)
+2. Affected Equipment/System/Faculty
+3. Frequency/Timing (When it started, how often)
+4. Severity/Impact on practicals/classes
+
+If details are MISSING, generate the next SINGLE polite, natural follow-up question referencing what the student already said! Set isComplete = false.
+If ALL details are present, set isComplete = true, nextQuestion = null, completenessScore = 100.
+
+Return JSON object:
+{{
+  "completenessScore": number (0-100),
+  "isComplete": boolean,
+  "nextQuestion": string or null,
+  "issueTitle": string,
+  "location": string,
+  "frequency": string,
+  "impact": "High" | "Medium" | "Low",
+  "sentiment": "Negative" | "Neutral" | "Positive",
+  "extractedDetails": [array of strings]
+}}"""
+            res = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config={"response_mime_type": "application/json"}
+            )
+            return json.loads(res.text)
+        except Exception as e:
+            print(f"Gemini SDK error: {e}")
+
+    # Smart Dynamic Contextual NLP Triage Engine (Incorporates student's EXACT phrases!)
+    full_text = " ".join([c.get("text", "") for c in req.conversation_history]).strip()
+    lower_text = full_text.lower()
+    
+    # Extract entities mentioned by student
+    location_match = re.search(r'(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block|block\s*[a-z0-9]+)', lower_text, re.IGNORECASE)
+    found_location = location_match.group(0).upper() if location_match else None
+    
+    equipment_match = re.search(r'(projector|computer|pc|laptop|wifi|wi-fi|internet|ac|air conditioner|fan|water dispenser|bench|mic|speaker|light)', lower_text, re.IGNORECASE)
+    found_equipment = equipment_match.group(0) if equipment_match else None
+    
+    timing_match = re.search(r'(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks)', lower_text, re.IGNORECASE)
+    found_timing = timing_match.group(0) if timing_match else None
+    
+    impact_match = re.search(r'(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture)', lower_text, re.IGNORECASE)
+    found_impact = impact_match.group(0) if impact_match else None
+
+    # Track missing pieces dynamically
+    missing = []
+    if not found_location:
+        missing.append("location")
+    if not found_equipment:
+        missing.append("equipment")
+    if not found_timing:
+        missing.append("timing")
+    if not found_impact:
+        missing.append("impact")
+
+    score = max(25, 100 - (len(missing) * 25))
+    is_complete = len(missing) == 0
+    next_question = None
+
+    if not is_complete:
+        next_target = missing[0]
+        if next_target == "location":
+            if found_equipment:
+                next_question = f"Got it, the issue with the {found_equipment} needs attention. Which specific room number, lab, or building floor is this located in?"
+            else:
+                next_question = "Which specific room number, lab, or floor location is experiencing this issue?"
+        elif next_target == "equipment":
+            if found_location:
+                next_question = f"Understood, noted location {found_location}. Could you specify which exact equipment, system, or facility in {found_location} is having trouble?"
+            else:
+                next_question = "Could you specify which exact equipment, computer, or facility is affected?"
+        elif next_target == "timing":
+            item_ref = f"the {found_equipment} issue" if found_equipment else "this issue"
+            loc_ref = f" in {found_location}" if found_location else ""
+            next_question = f"When did {item_ref}{loc_ref} start happening, or how frequently do you notice it?"
+        elif next_target == "impact":
+            item_ref = f"the {found_equipment}" if found_equipment else "this problem"
+            next_question = f"How is {item_ref} impacting your practical lectures, studying, or lab sessions?"
+
+    # Title building
+    loc_name = found_location or "Campus"
+    eq_name = found_equipment.title() if found_equipment else "Infrastructure"
+    issue_title = f"{loc_name} {eq_name} Report"
+
+    return {
+        "completenessScore": score,
+        "isComplete": is_complete,
+        "nextQuestion": next_question,
+        "issueTitle": issue_title,
+        "location": loc_name,
+        "frequency": found_timing or "Recently reported",
+        "impact": "High" if found_impact else "Medium",
+        "sentiment": "Negative" if (found_impact or "bad" in lower_text or "not working" in lower_text) else "Neutral",
+        "extractedDetails": [
+            f"Location: {loc_name}",
+            f"Equipment: {eq_name}",
+            f"Timing: {found_timing or 'Unspecified'}",
+            f"Impact: {'High' if found_impact else 'Medium'}"
+        ]
+    }
 
 @app.get("/api/feedback/{fb_id}")
 def get_feedback_by_id(fb_id: str):
@@ -368,7 +472,6 @@ def generate_questions_with_ai(req: FormGenerateRequest):
     """
     api_key = req.api_key or os.getenv("GEMINI_API_KEY")
     
-    # Try Live Gemini Call if API key is present
     if api_key:
         try:
             from google import genai
@@ -396,7 +499,6 @@ Document Text:
     
     questions = []
 
-    # Question 1: Department selector
     questions.append({
         "id": "q1",
         "question_text": "Which academic department do you belong to?",
@@ -405,13 +507,9 @@ Document Text:
         "required": True
     })
 
-    # Extract dynamic entities from document
     labs = re.findall(r'(lab\s*\d+|room\s*\d+)', lower_text, re.IGNORECASE)
     labs_str = ", ".join(list(set([l.upper() for l in labs]))) if labs else "Computer Labs & Classrooms"
 
-    courses = re.findall(r'(sem\s*\d+|spring\s*\d+|fall\s*\d+|course\s*\w+)', lower_text, re.IGNORECASE)
-
-    # 1. Faculty / Teaching topic
     if any(k in lower_text for k in ["faculty", "teaching", "teacher", "lecture", "professor", "course", "syllabus"]):
         questions.append({
             "id": f"q_{uuid.uuid4().hex[:4]}",
@@ -421,7 +519,6 @@ Document Text:
             "required": True
         })
 
-    # 2. Lab / Equipment / Computer topic
     if any(k in lower_text for k in ["lab", "computer", "projector", "equipment", "hardware", "software", "practical"]):
         questions.append({
             "id": f"q_{uuid.uuid4().hex[:4]}",
@@ -431,7 +528,6 @@ Document Text:
             "required": True
         })
 
-    # 3. Wi-Fi / Infrastructure / Canteen / Library topic
     if any(k in lower_text for k in ["wifi", "wi-fi", "internet", "library", "canteen", "sanitation", "water", "hostel"]):
         questions.append({
             "id": f"q_{uuid.uuid4().hex[:4]}",
@@ -441,7 +537,6 @@ Document Text:
             "required": True
         })
 
-    # 4. Exam / Notice / Accreditation topic
     if any(k in lower_text for k in ["exam", "test", "assessment", "notice", "accreditation", "naac", "circular"]):
         questions.append({
             "id": f"q_{uuid.uuid4().hex[:4]}",
@@ -451,10 +546,9 @@ Document Text:
             "required": True
         })
 
-    # 5. Open Suggestion Question
     questions.append({
         "id": f"q_{uuid.uuid4().hex[:4]}",
-        "question_text": f"What specific improvements or suggestions do you have regarding the topics mentioned in this document?",
+        "question_text": "What specific improvements or suggestions do you have regarding the topics mentioned in this document?",
         "question_type": "PARAGRAPH",
         "options": [],
         "required": False

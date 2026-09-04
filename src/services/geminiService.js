@@ -1,7 +1,5 @@
 // Gemini AI feedback analysis & multi-turn follow-up engine for LoopBack
 
-const MOCK_DELAY = 800;
-
 export const getStoredApiKey = () => {
   return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) ||
          localStorage.getItem('gemini_api_key') ||
@@ -10,149 +8,92 @@ export const getStoredApiKey = () => {
 
 /**
  * Evaluates feedback completeness and generates targeted follow-up questions iteratively
- * until ALL required institutional parameters (Location, Frequency, Detail, Impact) are answered.
+ * by sending dialogue history to backend AI API (`/api/feedback/analyze`).
  */
 export const analyzeConversationalFeedback = async (conversationHistory, currentCategory = 'Infrastructure', providedApiKey = null) => {
   const apiKey = providedApiKey || getStoredApiKey();
 
-  if (apiKey) {
-    try {
-      const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey });
+  // Primary: Call Backend FastAPI AI Endpoint
+  try {
+    const res = await fetch('http://localhost:8000/api/feedback/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_history: conversationHistory,
+        category: currentCategory,
+        api_key: apiKey || null
+      })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn('Backend API feedback analysis fetch notice:', err);
+  }
 
-      const formattedHistory = conversationHistory.map(item => `${item.role === 'assistant' ? 'AI Assistant' : 'Student'}: "${item.text}"`).join('\n');
+  // Standalone Client Triage (if backend server is offline)
+  const fullText = conversationHistory.map(c => c.text).join(' ').toLowerCase();
 
-      const prompt = `You are LoopBack Institutional AI Assistant. Analyze the following multi-turn feedback conversation between a student and AI.
-Category: ${currentCategory}
+  const locationMatch = fullText.match(/(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block|block\s*[a-z0-9]+)/i);
+  const foundLocation = locationMatch ? locationMatch[0].toUpperCase() : null;
 
-Conversation History:
-${formattedHistory}
+  const equipmentMatch = fullText.match(/(projector|computer|pc|laptop|wifi|wi-fi|internet|ac|air conditioner|fan|water dispenser|bench|mic|speaker|light)/i);
+  const foundEquipment = equipmentMatch ? equipmentMatch[0] : null;
 
-Your Goal: Evaluate if ALL 4 necessary institutional parameters are provided by the student:
-1. Specific Location (e.g., Room 304, Library 2nd Floor, Main Canteen)
-2. Frequency or When it started (e.g., Every lab class, Started 3 days ago)
-3. Specific Equipment/System/Faculty (e.g., Projector bulb, PC #12, Dr. Vance's lecture)
-4. Observed Impact/Severity (e.g., Halts practical exams, Wi-Fi drops during study)
+  const timingMatch = fullText.match(/(daily|every\s*\w+|since\s*\w+|yesterday|today|last week|always|frequently|2 days|two weeks|weeks)/i);
+  const foundTiming = timingMatch ? timingMatch[0] : null;
 
-Calculate a completeness score (0 to 100%).
-If ANY parameter is missing, set isComplete = false and provide the exact next targeted follow-up question to ask the student.
-Only set isComplete = true and nextQuestion = null when ALL required information is present.
+  const impactMatch = fullText.match(/(exam|practical|freeze|crash|cannot|disturb|delay|affect|interrupt|slow|stop|hard|lecture)/i);
+  const foundImpact = impactMatch ? impactMatch[0] : null;
 
-Return ONLY a JSON object with this exact structure:
-{
-  "completenessScore": number (0-100),
-  "isComplete": boolean,
-  "nextQuestion": string or null,
-  "issueTitle": string,
-  "location": string,
-  "frequency": string,
-  "impact": "High" | "Medium" | "Low",
-  "sentiment": "Negative" | "Neutral" | "Positive",
-  "extractedDetails": [array of strings]
-}`;
+  const missing = [];
+  if (!foundLocation) missing.push('location');
+  if (!foundEquipment) missing.push('equipment');
+  if (!foundTiming) missing.push('timing');
+  if (!foundImpact) missing.push('impact');
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-      });
+  const score = Math.max(25, 100 - (missing.length * 25));
+  const isComplete = missing.length === 0;
+  let nextQuestion = null;
 
-      if (response && response.text) {
-        return JSON.parse(response.text);
-      }
-    } catch (err) {
-      console.warn('Gemini API live call notice:', err);
+  if (!isComplete) {
+    const nextTarget = missing[0];
+    if (nextTarget === 'location') {
+      nextQuestion = foundEquipment
+        ? `Got it, the issue with the ${foundEquipment} needs attention. Which specific room number, lab, or floor location is this located in?`
+        : 'Which specific room number, lab, or floor location is experiencing this issue?';
+    } else if (nextTarget === 'equipment') {
+      nextQuestion = foundLocation
+        ? `Understood, noted location ${foundLocation}. Could you specify which exact equipment, system, or facility in ${foundLocation} is having trouble?`
+        : 'Could you specify which exact equipment, computer, or facility is affected?';
+    } else if (nextTarget === 'timing') {
+      const itemRef = foundEquipment ? `the ${foundEquipment} issue` : 'this issue';
+      const locRef = foundLocation ? ` in ${foundLocation}` : '';
+      nextQuestion = `When did ${itemRef}${locRef} start happening, or how frequently do you notice it?`;
+    } else if (nextTarget === 'impact') {
+      const itemRef = foundEquipment ? `the ${foundEquipment}` : 'this problem';
+      nextQuestion = `How is ${itemRef} impacting your practical lectures, studying, or lab sessions?`;
     }
   }
 
-  // Multi-turn Iterative Evaluation Engine (guarantees dynamic follow-up sequence until 100%)
-  await new Promise(r => setTimeout(r, MOCK_DELAY));
-
-  const fullText = conversationHistory.map(c => c.text).join(' ').toLowerCase();
-
-  let hasLocation = false;
-  let hasFrequency = false;
-  let hasDetail = false;
-  let hasImpact = false;
-
-  let location = 'Campus Area';
-  let frequency = 'Unspecified';
-  let impact = 'Medium';
-  let sentiment = 'Neutral';
-
-  // 1. Location check
-  if (fullText.includes('room') || fullText.includes('lab') || fullText.includes('floor') || fullText.includes('canteen') || fullText.includes('library') || fullText.includes('hostel') || fullText.includes('block') || fullText.includes('hall')) {
-    hasLocation = true;
-    const match = fullText.match(/(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block)/i);
-    if (match) location = match[0].toUpperCase();
-  }
-
-  // 2. Frequency / Timing check
-  if (fullText.includes('daily') || fullText.includes('every') || fullText.includes('since') || fullText.includes('always') || fullText.includes('yesterday') || fullText.includes('week') || fullText.includes('days') || fullText.includes('today') || fullText.includes('frequently')) {
-    hasFrequency = true;
-    if (fullText.includes('every') || fullText.includes('daily')) frequency = 'Recurring daily';
-    else if (fullText.includes('since') || fullText.includes('week')) frequency = 'Ongoing since last week';
-    else frequency = 'Recently observed';
-  }
-
-  // 3. Specific Detail check
-  if (fullText.includes('projector') || fullText.includes('pc') || fullText.includes('computer') || fullText.includes('ac') || fullText.includes('fan') || fullText.includes('wifi') || fullText.includes('wi-fi') || fullText.includes('water') || fullText.includes('bench') || fullText.includes('lecture') || fullText.includes('mic') || fullText.includes('speaker')) {
-    hasDetail = true;
-  }
-
-  // 4. Impact check
-  if (fullText.includes('exam') || fullText.includes('freeze') || fullText.includes('stop') || fullText.includes('cannot') || fullText.includes('hard') || fullText.includes('disturb') || fullText.includes('delay') || fullText.includes('affect') || fullText.includes('interrupt') || fullText.includes('slow') || fullText.includes('bad')) {
-    hasImpact = true;
-    impact = 'High';
-    sentiment = 'Negative';
-  }
-
-  // Count answered parameters (25% per parameter)
-  let count = 0;
-  if (hasLocation) count++;
-  if (hasFrequency) count++;
-  if (hasDetail) count++;
-  if (hasImpact) count++;
-
-  let score = Math.max(25, count * 25);
-  let nextQuestion = null;
-  let isComplete = false;
-
-  // Ask targeted follow-up questions iteratively for any missing parameter
-  if (!hasLocation) {
-    nextQuestion = "Which specific room number, lab, or floor location is affected?";
-  } else if (!hasFrequency) {
-    nextQuestion = "When did this start occurring, or how frequently do you experience this issue?";
-  } else if (!hasDetail) {
-    nextQuestion = "Could you specify which exact equipment, system, or facility is having trouble?";
-  } else if (!hasImpact) {
-    nextQuestion = "How is this issue impacting your classes, lab practicals, or daily study?";
-  } else {
-    isComplete = true;
-    score = 100;
-  }
-
-  // Title extraction
-  let issueTitle = `${location} Feedback Ticket`;
-  if (fullText.includes('projector')) issueTitle = `${location} Projector Display Issue`;
-  else if (fullText.includes('wifi') || fullText.includes('internet')) issueTitle = `${location} Wi-Fi Signal Dropouts`;
-  else if (fullText.includes('pc') || fullText.includes('computer') || fullText.includes('freeze')) issueTitle = `${location} System Freezes & Hardware Issue`;
-  else if (fullText.includes('water') || fullText.includes('clean')) issueTitle = `${location} Facility Sanitation Issue`;
+  const locName = foundLocation || 'Campus Area';
+  const eqName = foundEquipment ? foundEquipment.charAt(0).toUpperCase() + foundEquipment.slice(1) : 'Infrastructure';
 
   return {
     completenessScore: score,
     isComplete,
     nextQuestion,
-    issueTitle,
-    location,
-    frequency,
-    impact,
-    sentiment,
+    issueTitle: `${locName} ${eqName} Ticket`,
+    location: locName,
+    frequency: foundTiming || 'Recently reported',
+    impact: foundImpact ? 'High' : 'Medium',
+    sentiment: (foundImpact || fullText.includes('not working') || fullText.includes('bad')) ? 'Negative' : 'Neutral',
     extractedDetails: [
-      `Location: ${location}`,
-      `Timing: ${frequency}`,
-      `Severity: ${impact} Impact`,
-      `Verified parameters: ${count}/4 complete`
+      `Location: ${locName}`,
+      `Equipment: ${eqName}`,
+      `Timing: ${foundTiming || 'Unspecified'}`,
+      `Impact: ${foundImpact ? 'High Impact' : 'Medium Impact'}`
     ]
   };
 };
