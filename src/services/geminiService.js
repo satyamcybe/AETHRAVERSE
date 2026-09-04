@@ -1,6 +1,6 @@
 // Gemini AI feedback analysis & multi-turn follow-up engine for LoopBack
 
-const MOCK_DELAY = 900;
+const MOCK_DELAY = 800;
 
 export const getStoredApiKey = () => {
   return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) ||
@@ -9,8 +9,8 @@ export const getStoredApiKey = () => {
 };
 
 /**
- * Evaluates feedback completeness and generates targeted follow-up questions
- * using Google Gemini 2.5 Flash API or smart document extractor.
+ * Evaluates feedback completeness and generates targeted follow-up questions iteratively
+ * until ALL required institutional parameters (Location, Frequency, Detail, Impact) are answered.
  */
 export const analyzeConversationalFeedback = async (conversationHistory, currentCategory = 'Infrastructure', providedApiKey = null) => {
   const apiKey = providedApiKey || getStoredApiKey();
@@ -22,33 +22,33 @@ export const analyzeConversationalFeedback = async (conversationHistory, current
 
       const formattedHistory = conversationHistory.map(item => `${item.role === 'assistant' ? 'AI Assistant' : 'Student'}: "${item.text}"`).join('\n');
 
-      const prompt = `You are LoopBack Institutional AI Assistant. Analyze the following feedback conversation between a student and AI.
+      const prompt = `You are LoopBack Institutional AI Assistant. Analyze the following multi-turn feedback conversation between a student and AI.
 Category: ${currentCategory}
 
 Conversation History:
 ${formattedHistory}
 
-Your Goal: Evaluate if all necessary institutional parameters are present to file an actionable report:
+Your Goal: Evaluate if ALL 4 necessary institutional parameters are provided by the student:
 1. Specific Location (e.g., Room 304, Library 2nd Floor, Main Canteen)
 2. Frequency or When it started (e.g., Every lab class, Started 3 days ago)
-3. Specific Equipment/Faculty/Detail (e.g., Projector bulb, PC #12, Dr. Vance's lecture)
-4. Observed Impact/Severity (e.g., Halts exams, Wi-Fi drops every 10 min)
+3. Specific Equipment/System/Faculty (e.g., Projector bulb, PC #12, Dr. Vance's lecture)
+4. Observed Impact/Severity (e.g., Halts practical exams, Wi-Fi drops during study)
 
-Calculate a completeness percentage (0 to 100%).
-If completeness is LESS than 100%, formulate the NEXT single polite, concise follow-up question to ask the student. Speak in a helpful institutional tone.
-If completeness is 100% (or all key details are clear), set isComplete = true, nextQuestion = null.
+Calculate a completeness score (0 to 100%).
+If ANY parameter is missing, set isComplete = false and provide the exact next targeted follow-up question to ask the student.
+Only set isComplete = true and nextQuestion = null when ALL required information is present.
 
 Return ONLY a JSON object with this exact structure:
 {
   "completenessScore": number (0-100),
   "isComplete": boolean,
   "nextQuestion": string or null,
-  "issueTitle": string (short concise title for ticket),
+  "issueTitle": string,
   "location": string,
   "frequency": string,
   "impact": "High" | "Medium" | "Low",
   "sentiment": "Negative" | "Neutral" | "Positive",
-  "extractedDetails": [array of bullet point strings]
+  "extractedDetails": [array of strings]
 }`;
 
       const response = await ai.models.generateContent({
@@ -65,7 +65,7 @@ Return ONLY a JSON object with this exact structure:
     }
   }
 
-  // Dynamic Rule & NLP Extractor Fallback when API key is pending
+  // Multi-turn Iterative Evaluation Engine (guarantees dynamic follow-up sequence until 100%)
   await new Promise(r => setTimeout(r, MOCK_DELAY));
 
   const fullText = conversationHistory.map(c => c.text).join(' ').toLowerCase();
@@ -73,65 +73,71 @@ Return ONLY a JSON object with this exact structure:
   let hasLocation = false;
   let hasFrequency = false;
   let hasDetail = false;
+  let hasImpact = false;
 
-  let location = 'Campus';
+  let location = 'Campus Area';
   let frequency = 'Unspecified';
   let impact = 'Medium';
   let sentiment = 'Neutral';
 
-  // Location checks
-  if (fullText.includes('room') || fullText.includes('lab') || fullText.includes('floor') || fullText.includes('canteen') || fullText.includes('library') || fullText.includes('hostel') || fullText.includes('hall')) {
+  // 1. Location check
+  if (fullText.includes('room') || fullText.includes('lab') || fullText.includes('floor') || fullText.includes('canteen') || fullText.includes('library') || fullText.includes('hostel') || fullText.includes('block') || fullText.includes('hall')) {
     hasLocation = true;
-    const match = fullText.match(/(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium)/i);
+    const match = fullText.match(/(lab\s*\d+|room\s*\d+|library\s*\d*(st|nd|rd|th)?\s*floor|canteen|hostel|auditorium|it block)/i);
     if (match) location = match[0].toUpperCase();
   }
 
-  // Frequency / Timing checks
-  if (fullText.includes('daily') || fullText.includes('every') || fullText.includes('since') || fullText.includes('always') || fullText.includes('yesterday') || fullText.includes('week') || fullText.includes('days')) {
+  // 2. Frequency / Timing check
+  if (fullText.includes('daily') || fullText.includes('every') || fullText.includes('since') || fullText.includes('always') || fullText.includes('yesterday') || fullText.includes('week') || fullText.includes('days') || fullText.includes('today') || fullText.includes('frequently')) {
     hasFrequency = true;
     if (fullText.includes('every') || fullText.includes('daily')) frequency = 'Recurring daily';
     else if (fullText.includes('since') || fullText.includes('week')) frequency = 'Ongoing since last week';
+    else frequency = 'Recently observed';
   }
 
-  // Specific detail checks
-  if (fullText.includes('projector') || fullText.includes('pc') || fullText.includes('computer') || fullText.includes('ac') || fullText.includes('fan') || fullText.includes('wifi') || fullText.includes('water') || fullText.includes('exam') || fullText.includes('bench')) {
+  // 3. Specific Detail check
+  if (fullText.includes('projector') || fullText.includes('pc') || fullText.includes('computer') || fullText.includes('ac') || fullText.includes('fan') || fullText.includes('wifi') || fullText.includes('wi-fi') || fullText.includes('water') || fullText.includes('bench') || fullText.includes('lecture') || fullText.includes('mic') || fullText.includes('speaker')) {
     hasDetail = true;
   }
 
-  // Calculate score
-  let score = 25; // initial submission base
-  if (hasLocation) score += 30;
-  if (hasFrequency) score += 25;
-  if (hasDetail) score += 20;
+  // 4. Impact check
+  if (fullText.includes('exam') || fullText.includes('freeze') || fullText.includes('stop') || fullText.includes('cannot') || fullText.includes('hard') || fullText.includes('disturb') || fullText.includes('delay') || fullText.includes('affect') || fullText.includes('interrupt') || fullText.includes('slow') || fullText.includes('bad')) {
+    hasImpact = true;
+    impact = 'High';
+    sentiment = 'Negative';
+  }
 
+  // Count answered parameters (25% per parameter)
+  let count = 0;
+  if (hasLocation) count++;
+  if (hasFrequency) count++;
+  if (hasDetail) count++;
+  if (hasImpact) count++;
+
+  let score = Math.max(25, count * 25);
   let nextQuestion = null;
   let isComplete = false;
 
-  if (score >= 90) {
-    isComplete = true;
-    score = 100;
-  } else if (!hasLocation) {
-    nextQuestion = "Which specific location, floor, or room number does this issue occur in?";
+  // Ask targeted follow-up questions iteratively for any missing parameter
+  if (!hasLocation) {
+    nextQuestion = "Which specific room number, lab, or floor location is affected?";
   } else if (!hasFrequency) {
-    nextQuestion = "How frequently does this happen, or when did you first notice this problem?";
+    nextQuestion = "When did this start occurring, or how frequently do you experience this issue?";
   } else if (!hasDetail) {
-    nextQuestion = "Could you specify which exact equipment, system, or facility is affected?";
+    nextQuestion = "Could you specify which exact equipment, system, or facility is having trouble?";
+  } else if (!hasImpact) {
+    nextQuestion = "How is this issue impacting your classes, lab practicals, or daily study?";
   } else {
     isComplete = true;
     score = 100;
   }
 
-  // Extract issue title
-  let issueTitle = 'Institutional Feedback Report';
+  // Title extraction
+  let issueTitle = `${location} Feedback Ticket`;
   if (fullText.includes('projector')) issueTitle = `${location} Projector Display Issue`;
   else if (fullText.includes('wifi') || fullText.includes('internet')) issueTitle = `${location} Wi-Fi Signal Dropouts`;
-  else if (fullText.includes('pc') || fullText.includes('computer') || fullText.includes('freeze')) issueTitle = `${location} Computer Performance & Boot Issue`;
-  else if (fullText.includes('clean') || fullText.includes('water')) issueTitle = `${location} Sanitation & Water Dispenser Report`;
-
-  if (fullText.includes('freeze') || fullText.includes('crash') || fullText.includes('urgent') || fullText.includes('stop')) {
-    impact = 'High';
-    sentiment = 'Negative';
-  }
+  else if (fullText.includes('pc') || fullText.includes('computer') || fullText.includes('freeze')) issueTitle = `${location} System Freezes & Hardware Issue`;
+  else if (fullText.includes('water') || fullText.includes('clean')) issueTitle = `${location} Facility Sanitation Issue`;
 
   return {
     completenessScore: score,
@@ -144,14 +150,13 @@ Return ONLY a JSON object with this exact structure:
     sentiment,
     extractedDetails: [
       `Location: ${location}`,
-      `Timing/Frequency: ${frequency}`,
+      `Timing: ${frequency}`,
       `Severity: ${impact} Impact`,
-      `Verified via Student Voice Submissions`
+      `Verified parameters: ${count}/4 complete`
     ]
   };
 };
 
-// Legacy support
 export const analyzeFeedback = async (transcript, apiKey) => {
   return analyzeConversationalFeedback([{ role: 'user', text: transcript }], 'Infrastructure', apiKey);
 };
